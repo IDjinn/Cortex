@@ -1,0 +1,220 @@
+openapi: 3.0.4
+info:
+  title: Cortex API
+  version: "1.0.0"
+  description: |
+    Backend HTTP+SSE para o Cortex, o copiloto multi-provedor.
+    Todas as rotas (exceto `/api/auth/*`) exigem JWT Bearer.
+servers:
+  - url: http://localhost:5172
+    description: Dev local
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    UserProfile:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        name: { type: string, nullable: true }
+        avatarUrl: { type: string, nullable: true }
+        provider: { type: string, enum: [Google, GitHub] }
+        createdAt: { type: string, format: date-time }
+    AuthResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        expiresAt: { type: string, format: date-time }
+        refreshToken: { type: string }
+        user: { $ref: '#/components/schemas/UserProfile' }
+    Conversation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        provider: { type: string, enum: [OpenRouter, Ollama] }
+        model: { type: string }
+        pinned: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        messageCount: { type: integer }
+    Message:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [User, Assistant, System, Tool] }
+        content: { type: string }
+        model: { type: string, nullable: true }
+        tokensIn: { type: integer, nullable: true }
+        tokensOut: { type: integer, nullable: true }
+        error: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    Model:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        contextLength: { type: integer, nullable: true }
+        promptPrice: { type: number, nullable: true }
+        completionPrice: { type: number, nullable: true }
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        detail: { type: string, nullable: true }
+
+paths:
+  /health:
+    get:
+      security: []
+      summary: Health check anônimo
+      responses:
+        '200': { description: ok }
+
+  /api/auth/{provider}/login:
+    get:
+      security: []
+      summary: Inicia fluxo OAuth (Google/GitHub)
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { type: string, enum: [google, github] }
+        - in: query
+          name: redirectUri
+          required: true
+          schema: { type: string }
+      responses:
+        '302': { description: Redirect para o provedor }
+
+  /api/auth/refresh:
+    post:
+      security: []
+      summary: Renova access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: Novo par de tokens
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401':
+          description: Refresh inválido
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /api/me:
+    get:
+      summary: Perfil do usuário autenticado
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/UserProfile' } } }
+        '404': { description: Não encontrado }
+
+  /api/conversations:
+    get:
+      summary: Lista conversas (mais recentes primeiro)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Conversation' } }
+    post:
+      summary: Cria nova conversa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, model]
+              properties:
+                title: { type: string }
+                provider: { type: string, enum: [OpenRouter, Ollama] }
+                model: { type: string }
+      responses:
+        '201':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } }
+
+  /api/conversations/{id}:
+    get:
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } }
+    patch:
+      summary: Atualiza título / pin
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                pinned: { type: boolean }
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } }
+    delete:
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Removida }
+
+  /api/chat/{conversationId}:
+    post:
+      summary: Streama uma rodada de chat (SSE)
+      parameters:
+        - { in: path, name: conversationId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string }
+      responses:
+        '200':
+          description: text/event-stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Eventos SSE (cada um em uma linha `data: {json}\n\n`):
+                  - { type: "started", conversationId }
+                  - { type: "token", text }
+                  - { type: "usage", tokensIn, tokensOut }
+                  - { type: "completed", message }
+                  - { type: "failed", reason }
+
+  /api/models:
+    get:
+      summary: Lista modelos disponíveis por provedor (com cache de 10min)
+      parameters:
+        - { in: query, name: provider, required: true, schema: { type: string, enum: [OpenRouter, Ollama] } }
+        - { in: query, name: refresh, schema: { type: boolean } }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Model' } }

@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Cortex",
+    "slug": "cortex",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "cortex",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "backgroundColor": "#0b0b0d"
+    },
+    "android": {
+      "backgroundColor": "#0b0b0d",
+      "adaptiveIcon": {
+        "backgroundColor": "#0b0b0d",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": true,
+      "package": "app.cortex"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png",
+      "backgroundColor": "#0b0b0d"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0b0b0d"
+        }
+      ],
+      "expo-secure-store",
+      "expo-font",
+      "expo-status-bar",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiBaseUrl": "http://localhost:5172",
+      "oauthRedirect": "cortex://auth/callback"
+    }
+  }
+}
