@@ -2,6 +2,10 @@
 
 > Internal project name: **Cortex**. Folder is still `CodePlus/` due to path-migration.
 
+## Product direction
+
+Cortex is a complete AI environment: multi-provider connectors (OpenRouter-style aggregation + direct connectors), a context engine (memories, code indexing, skills), agent-first features (tools, automations, A2A), mobile + desktop, in two tiers — offline (free for non-commercial use) and cloud (subscription). It works as the user's main agent or as a helper to other agents. The phased backlog lives in `docs/ROADMAP.md` — new features should trace back to a roadmap task; if they don't, add the task there first.
+
 ## Stack
 
 - **Mobile**: Expo SDK **56** (NOT 57), React 19, RN 0.85.3, expo-router (typed routes), styled-components/native 6, Reanimated 4.3.1, gesture-handler 2.31, expo-secure-store, react-native-markdown-display, Zustand 5, Bun 1.3.
@@ -63,5 +67,6 @@ When files are renamed, the LSP cache goes stale and shows errors for files that
 ## Docs
 
 - `README.md` — overview + Mermaid diagram of the architecture
+- `docs/ROADMAP.md` — product vision, phases, and task backlog (single source of truth)
 - `docs/SETUP.md` — step-by-step backend + frontend + troubleshooting
 - `docs/openapi.yaml` — OpenAPI 3 spec of the backend

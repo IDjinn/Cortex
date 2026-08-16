@@ -1,8 +1,8 @@
 # Cortex
 
-> Your copilot for code, ideas, and everything else.
+> A complete AI environment — chat, skills, memories, and code. Your main agent, or its helper.
 
-Mobile-first app (Expo + .NET) that talks to multiple LLM providers (OpenRouter, Ollama) through its own backend with OAuth authentication (Google + GitHub), JWT, and SSE streaming.
+Mobile-first app (Expo + .NET) that talks to multiple LLM providers (OpenRouter, Ollama — direct connectors coming) through its own backend with OAuth authentication (Google + GitHub), JWT, and SSE streaming. The goal: manage all your AI context — skills, memories, indexed code — on mobile and desktop, working as your main agent or as a helper to other agents. Offline is free for non-commercial use; cloud sync will be a subscription. See [docs/ROADMAP.md](./docs/ROADMAP.md) for the full plan.
 
 ![status](https://img.shields.io/badge/status-alpha-orange)
 ![sdk](https://img.shields.io/badge/Expo%20SDK-56-000020)
@@ -87,9 +87,13 @@ Cortex/
 
 ## Roadmap
 
-- [x] **Phase 1**: Chat app (mobile + backend) ← _you are here_
-- [ ] **Phase 2**: Backend expansion (memories, projects, skills, RAG)
-- [ ] **Phase 3**: Desktop/web with remote control
+- [x] **Phase 1**: Chat app (mobile + backend)
+- [ ] **Phase 2**: Provider layer (model picker, direct connectors, BYOK, routing) ← _we are here_
+- [ ] **Phase 3**: Context engine (memories, skills, code indexing, RAG, MCP)
+- [ ] **Phase 4**: Agent mode (tools, orchestration, helper mode, automations, A2A)
+- [ ] **Phase 5**: Desktop + Cloud (desktop app, E2E sync, subscription)
+
+Full backlog with per-phase tasks: [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 ## License
 
