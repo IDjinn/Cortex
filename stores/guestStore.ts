@@ -35,6 +35,13 @@ export interface GuestMessage {
   costUsd: number | null;
 }
 
+export interface GuestMemory {
+  id: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface GuestCreateInput {
   title?: string;
   provider: ChatProviderKind;
@@ -44,6 +51,7 @@ export interface GuestCreateInput {
 export interface GuestState {
   conversations: GuestConversation[];
   messagesByConv: Record<string, GuestMessage[]>;
+  memories: GuestMemory[];
   hydrated: boolean;
   create: (input: GuestCreateInput) => GuestConversation;
   getConversation: (id: string) => GuestConversation | undefined;
@@ -54,6 +62,9 @@ export interface GuestState {
   togglePin: (id: string) => void;
   setModel: (id: string, provider: ChatProviderKind, model: string) => void;
   remove: (id: string) => void;
+  addMemory: (content: string) => void;
+  updateMemory: (id: string, content: string) => void;
+  removeMemory: (id: string) => void;
   clear: () => void;
 }
 
@@ -79,6 +90,7 @@ export const useGuestStore = create<GuestState>()(
     (set, get) => ({
       conversations: [],
       messagesByConv: {},
+      memories: [],
       hydrated: false,
 
       create: (input) => {
@@ -152,12 +164,35 @@ export const useGuestStore = create<GuestState>()(
         });
       },
 
-      clear: () => set({ conversations: [], messagesByConv: {} }),
+      addMemory: (content) => {
+        const now = new Date().toISOString();
+        set((state) => ({
+          memories: [{ id: uid('gm'), content: content.trim(), createdAt: now, updatedAt: now }, ...state.memories],
+        }));
+      },
+
+      updateMemory: (id, content) => {
+        set((state) => ({
+          memories: state.memories.map((m) =>
+            m.id === id ? { ...m, content: content.trim(), updatedAt: new Date().toISOString() } : m,
+          ),
+        }));
+      },
+
+      removeMemory: (id) => {
+        set((state) => ({ memories: state.memories.filter((m) => m.id !== id) }));
+      },
+
+      clear: () => set({ conversations: [], messagesByConv: {}, memories: [] }),
     }),
     {
       name: 'cortex.guest.v1',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ conversations: state.conversations, messagesByConv: state.messagesByConv }),
+      partialize: (state) => ({
+        conversations: state.conversations,
+        messagesByConv: state.messagesByConv,
+        memories: state.memories,
+      }),
       onRehydrateStorage: () => () => {
         useGuestStore.setState({ hydrated: true });
       },
@@ -169,7 +204,11 @@ export const useGuestStore = create<GuestState>()(
 export const selectGuestList = (s: GuestState): GuestConversation[] => s.conversations;
 
 /** Snapshot for migration to the server when a guest logs in. */
-export function guestSnapshot(): { conversations: GuestConversation[]; messagesByConv: Record<string, GuestMessage[]> } {
+export function guestSnapshot(): {
+  conversations: GuestConversation[];
+  messagesByConv: Record<string, GuestMessage[]>;
+  memories: GuestMemory[];
+} {
   const s = useGuestStore.getState();
-  return { conversations: s.conversations, messagesByConv: s.messagesByConv };
+  return { conversations: s.conversations, messagesByConv: s.messagesByConv, memories: s.memories };
 }

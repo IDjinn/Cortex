@@ -74,13 +74,13 @@ Shipped: model picker with search/context/price/capabilities (full OpenRouter ca
 - [x] Guest mode beyond Ollama: any local endpoint (LM Studio, llama.cpp) and user-supplied remote keys
 - [x] Guest → account migration on login (use the prepared `guestSnapshot()`)
 
-## Phase 3 — Context engine
+## Phase 3 — Context engine (in progress)
 
-**Epic: Memories**
+**Epic: Memories** ✅ (shipped)
 
-- [ ] Data model with scopes: global / project / conversation
-- [ ] CRUD UI plus automatic memory extraction (assistant proposes memories; user confirms)
-- [ ] Prompt injection with a relevance budget (top-k memories per turn)
+- [x] Data model with scopes: global / project / conversation — `Project` scope is reserved in the enum until the Project entity exists; UI exposes Global + Conversation
+- [x] CRUD UI plus automatic memory extraction (assistant proposes memories; user confirms) — extraction runs server-side post-turn on the conversation's model and arrives as an SSE `memoryProposal` event; guest mode has manual memories only (extraction client-side is future work)
+- [x] Prompt injection with a relevance budget (top-k memories per turn) — deterministic top-K/char budget today (newest first); semantic ranking lands with the embeddings epic
 
 **Epic: Skills manager**
 

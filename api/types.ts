@@ -15,6 +15,8 @@ export type ChatProviderKind =
   | 'Mistral'
   | 'DeepSeek';
 export type MessageRole = 'User' | 'Assistant' | 'System' | 'Tool';
+export type MemoryScope = 'Global' | 'Project' | 'Conversation';
+export type MemorySource = 'Manual' | 'Extracted';
 
 export interface UserProfile {
   id: string;
@@ -114,7 +116,8 @@ export type ChatTurnEvent =
       model?: string;
       costUsd?: number | null;
     }
-  | { type: 'failed'; reason: string };
+  | { type: 'failed'; reason: string }
+  | { type: 'memoryProposal'; proposals: string[] };
 
 /** Monthly usage totals per provider (GET /api/usage?month=yyyy-MM). */
 export interface UsageResponse {
@@ -148,6 +151,22 @@ export interface ImportConversationDto {
 
 export interface ImportResultResponse {
   imported: number;
+}
+
+// ---- Memories ----
+
+export interface MemoryResponse {
+  id: string;
+  scope: MemoryScope;
+  conversationId: string | null;
+  source: MemorySource;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImportMemoryDto {
+  content: string;
 }
 
 /** Minimal message shape sent to the anonymous chat endpoint (stateless). */

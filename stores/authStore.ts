@@ -15,7 +15,7 @@ export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'unauthenticated
  */
 async function migrateGuestConversations(): Promise<void> {
   const snapshot = guestSnapshot();
-  if (snapshot.conversations.length === 0) return;
+  if (snapshot.conversations.length === 0 && snapshot.memories.length === 0) return;
   const payload: ImportConversationDto[] = snapshot.conversations.map((c) => ({
     title: c.title,
     provider: c.provider,
@@ -33,13 +33,16 @@ async function migrateGuestConversations(): Promise<void> {
     })),
   }));
   try {
-    const { imported } = await importConversations(payload);
+    const { imported } = await importConversations(
+      payload,
+      snapshot.memories.map((m) => ({ content: m.content })),
+    );
     if (imported > 0) {
       useGuestStore.getState().clear();
-      toast.success(`${imported} conversa${imported === 1 ? ' migrada' : 's migradas'}.`);
+      toast.success(`${imported} item${imported === 1 ? ' migrado' : 's migrados'}.`);
     }
   } catch {
-    toast.warning('Não foi possível migrar suas conversas de convidado.', 'Tentaremos novamente no próximo login.');
+    toast.warning('Não foi possível migrar seus dados de convidado.', 'Tentaremos novamente no próximo login.');
   }
 }
 

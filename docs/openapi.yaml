@@ -112,6 +112,16 @@ components:
         tokensIn: { type: integer }
         tokensOut: { type: integer }
         costUsd: { type: number, nullable: true }
+    Memory:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        scope: { type: string, enum: [Global, Project, Conversation] }
+        conversationId: { type: string, format: uuid, nullable: true }
+        source: { type: string, enum: [Manual, Extracted] }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     Error:
       type: object
       properties:
@@ -216,6 +226,9 @@ paths:
               schema: { type: array, items: { $ref: '#/components/schemas/Model' } }
         '400':
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '502':
+          description: Provedor inalcançável (ex.: Ollama desligado) ou erro upstream
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   /api/keys:
     get:
@@ -312,6 +325,14 @@ paths:
                             error: { type: string, nullable: true }
                             createdAt: { type: string, format: date-time, nullable: true }
                             costUsd: { type: number, nullable: true }
+                memories:
+                  type: array
+                  description: Memórias globais do convidado (migradas como escopo Global).
+                  items:
+                    type: object
+                    required: [content]
+                    properties:
+                      content: { type: string }
       responses:
         '200':
           description: "{ imported: n }"
@@ -361,6 +382,63 @@ paths:
             application/json:
               schema: { type: array, items: { $ref: '#/components/schemas/Usage' } }
 
+  /api/memories:
+    get:
+      summary: Lista memórias do usuário (filtro opcional por escopo/conversa)
+      parameters:
+        - { in: query, name: scope, schema: { type: string, enum: [Global, Project, Conversation] } }
+        - { in: query, name: conversationId, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Memory' } }
+    post:
+      summary: Cria uma memória
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scope, content]
+              properties:
+                scope: { type: string, enum: [Global, Project, Conversation] }
+                conversationId: { type: string, format: uuid, nullable: true, description: Obrigatório quando scope=Conversation. }
+                content: { type: string }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Memory' }
+        '400':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /api/memories/{id}:
+    patch:
+      summary: Edita o conteúdo de uma memória
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string }
+      responses:
+        '204': { description: Atualizada }
+        '404': { description: Não encontrada }
+    delete:
+      summary: Remove uma memória
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Removida }
+        '404': { description: Não encontrada }
+
   /api/chat:
     post:
       summary: Streama uma rodada de chat autenticada (SSE)
@@ -391,6 +469,7 @@ paths:
                   - toolCall { id, name, arguments } (contrato da Fase 4)
                   - notice { message } (ex.: fallback acionado)
                   - done { tokensIn, tokensOut, provider, model, costUsd }
+                  - memoryProposal { proposals: string[] } (extração automática pós-turno, aguarda confirmação do usuário)
                   - error { message }
 
   /api/chat/anonymous:

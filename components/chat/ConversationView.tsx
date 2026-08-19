@@ -14,13 +14,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar, IconButton } from '@/components/ui';
 import { MarkdownView } from '@/components/markdown';
 import { useChatSession } from '@/hooks/useChatSession';
-import { selectIsGuest, useAuthStore, useConversationsStore, useGuestStore } from '@/stores';
+import { selectIsGuest, useAuthStore, useConversationsStore, useGuestStore, useMemoriesStore } from '@/stores';
 import type { ChatProviderKind } from '@/api/types';
 import { PROVIDER_LABEL } from '@/stores/providersStore';
 import { toast } from '@/components/feedback';
 import { useTheme } from '@/theme';
 
 import { ModelPickerSheet } from './ModelPickerSheet';
+import { MemoryProposalSheet } from './MemoryProposalSheet';
 
 import { AssistantBubble, UserBubble } from './Bubble';
 import {
@@ -59,7 +60,17 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
   const { colors } = useTheme();
   const isGuest = useAuthStore(selectIsGuest);
 
-  const { conversation, messages, loading, streaming, error, send, cancel } = useChatSession(id);
+  const {
+    conversation,
+    messages,
+    loading,
+    streaming,
+    error,
+    memoryProposals,
+    dismissProposals,
+    send,
+    cancel,
+  } = useChatSession(id);
 
   const [input, setInput] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -95,6 +106,23 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
       }
     },
     [id],
+  );
+
+  // Confirmed extraction proposals become global memories.
+  const handleSaveProposals = useCallback(
+    async (confirmed: string[]) => {
+      dismissProposals();
+      if (confirmed.length === 0) return;
+      try {
+        for (const content of confirmed) {
+          await useMemoriesStore.getState().create({ scope: 'Global', content });
+        }
+        toast.success(`${confirmed.length} memória${confirmed.length === 1 ? ' salva' : 's salvas'}.`);
+      } catch (e) {
+        toast.error('Não foi possível salvar as memórias', String(e));
+      }
+    },
+    [dismissProposals],
   );
 
   // Estimated conversation cost so far (null when every model is local/free).
@@ -281,6 +309,13 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
             : null
         }
         onSelectFallback={isGuest ? undefined : handleSelectFallback}
+      />
+
+      <MemoryProposalSheet
+        visible={memoryProposals !== null}
+        proposals={memoryProposals}
+        onSave={handleSaveProposals}
+        onClose={dismissProposals}
       />
     </ChatScreenContainer>
   );

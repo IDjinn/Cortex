@@ -8,7 +8,7 @@ Cortex is a complete AI environment: multi-provider connectors (OpenRouter-style
 
 ## Stack
 
-- **Mobile**: Expo SDK **56** (NOT 57), React 19, RN 0.85.3, expo-router (typed routes), styled-components/native 6, Reanimated 4.3.1, gesture-handler 2.31, expo-secure-store, react-native-markdown-display, Zustand 5, Bun 1.3.
+- **Mobile**: Expo SDK **57**, React 19, RN 0.86.2, expo-router (typed routes), styled-components/native 6, Reanimated 4.5.1, gesture-handler 2.32, expo-secure-store, react-native-markdown-display, Zustand 5, Bun 1.3.
 - **Backend**: `C:\dev\csharp\Cortex` — .NET 10 (SDK 10.0.201 via `global.json`), EF Core 10, Npgsql 10, JWT, Postgres 17 via Docker.
 
 ## Commands
@@ -38,6 +38,7 @@ Remove-Item .expo -Recurse -Force -ErrorAction SilentlyContinue
 - **Providers**: `ChatProviderKind` = OpenRouter | Ollama | LmStudio | OpenAI | Anthropic | Gemini | Xai | Mistral | DeepSeek. `stores/providersStore.ts` is the single source of provider availability (local always; remote needs a device/vault/server key) and `PROVIDER_LABEL`.
 - **Model switching**: conversations are PATCHed with `{provider, model}` (authed) or `guestStore.setModel` (guest); empty-string `fallbackProvider`/`fallbackModel` clears the routing fallback.
 - **Guest**: guest chat goes through `POST /api/chat/anonymous` — local providers always, remote only with `X-Provider-Key`. A custom local endpoint (LM Studio/llama.cpp/Ollama elsewhere) is set in `stores/localEndpointStore.ts` and sent as `baseUrl`. On login, `authStore.applyAuth` imports the guest snapshot via `POST /api/conversations/import` and clears the guest store on success.
+- **Memories**: scoped facts (`Global`/`Conversation`; `Project` reserved until the Project entity exists) injected into the prompt with a top-K/char budget (`ChatOptions.MemoryTopK`/`MemoryMaxPromptChars`, mirrored client-side in `relevantMemories` from `stores/memoriesStore.ts`). Authed: server-side CRUD (`/api/memories`) via `memoriesStore` + injection in `ChatService`; post-turn extraction arrives as an SSE `memoryProposal` event confirmed in `MemoryProposalSheet`. Guest: memories inside `guestStore` (AsyncStorage), injected client-side as a System message in `useChatSession`; no guest extraction yet.
 
 ## Structure
 
@@ -46,11 +47,11 @@ Remove-Item .expo -Recurse -Force -ErrorAction SilentlyContinue
 - `components/ui/` — Button, IconButton, Card, Input, Avatar, Divider
 - `components/screens/` — screen styles (outside `app/` so they don't become routes)
 - `components/chat/` — Bubble (User/Assistant), ConversationView, ModelPickerSheet, Sidebar
-- `components/settings/` — ProviderKeysCard (BYOK), UsageCard (custo mensal), LocalEndpointCard
+- `components/settings/` — ProviderKeysCard (BYOK), UsageCard (custo mensal), LocalEndpointCard, MemoriesCard
 - `components/sheets/` — BottomSheet with Pan gesture + velocity-based dismiss
 - `components/feedback/` — Toaster (Sonner-style) + toast() API
 - `components/markdown/` — MarkdownView for LLM output
-- `stores/` — Zustand: authStore (com migração guest→conta), conversationsStore, guestStore, modelPrefsStore, keysStore (BYOK device), providersStore (catálogo), localEndpointStore
+- `stores/` — Zustand: authStore (com migração guest→conta), conversationsStore, guestStore (conversas + memórias do convidado), modelPrefsStore, keysStore (BYOK device), providersStore (catálogo), localEndpointStore, memoriesStore
 - `theme/` — colors, spacing, typography, motion, shadows, ThemeProvider
 - `config/` — reads `EXPO_PUBLIC_*` env with fallback to app.json extra
 

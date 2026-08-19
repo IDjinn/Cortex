@@ -26,6 +26,9 @@ export interface UseChatSessionResult {
   loading: boolean;
   streaming: boolean;
   error: string | null;
+  /** Post-turn extraction proposals awaiting user confirmation (null = none). */
+  memoryProposals: string[] | null;
+  dismissProposals: () => void;
   send: (content: string) => Promise<void>;
   cancel: () => void;
 }
@@ -59,6 +62,7 @@ export function useChatSession(id: string): UseChatSessionResult {
   const [loading, setLoading] = useState(!isGuest);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [memoryProposals, setMemoryProposals] = useState<string[] | null>(null);
   const streamRef = useRef<StreamHandle | null>(null);
 
   // Initial load (authed only — guest data is already in the persisted store).
@@ -187,6 +191,8 @@ export function useChatSession(id: string): UseChatSessionResult {
         } else if (evt.type === 'failed') {
           toast.error('Falha no streaming', evt.reason);
           updateLast('', { error: evt.reason });
+        } else if (evt.type === 'memoryProposal') {
+          if (evt.proposals.length > 0) setMemoryProposals(evt.proposals);
         }
       };
 
@@ -206,6 +212,24 @@ export function useChatSession(id: string): UseChatSessionResult {
           role: m.role,
           content: m.content,
         }));
+        // Guest memories are injected client-side (the anonymous endpoint has no
+        // server-side memory store) as a System message, mirroring the server budget.
+        const memories = useGuestStore.getState().memories.slice(0, 12);
+        let usedChars = 0;
+        const lines: string[] = [];
+        for (const m of memories) {
+          if (usedChars + m.content.length > 2000 && lines.length > 0) break;
+          lines.push(`- ${m.content}`);
+          usedChars += m.content.length;
+        }
+        if (lines.length > 0) {
+          history.unshift({
+            role: 'System',
+            content:
+              'Known memories about the user (background context — do not mention explicitly unless relevant):\n'
+              + lines.join('\n'),
+          });
+        }
         const isLocal = conversation.provider === 'Ollama' || conversation.provider === 'LmStudio';
         handle = startAnonymousStream({
           provider: conversation.provider,
@@ -243,5 +267,7 @@ export function useChatSession(id: string): UseChatSessionResult {
     streamRef.current?.cancel();
   }, []);
 
-  return { conversation, messages, loading, streaming, error, send, cancel };
+  const dismissProposals = useCallback(() => setMemoryProposals(null), []);
+
+  return { conversation, messages, loading, streaming, error, memoryProposals, dismissProposals, send, cancel };
 }

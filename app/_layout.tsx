@@ -66,6 +66,7 @@ function RootLayoutNav() {
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="callback" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="memories" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen
           name="conversation/[id]"
           options={{ headerShown: false, animation: 'slide_from_right' }}

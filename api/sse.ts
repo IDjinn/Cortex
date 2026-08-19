@@ -81,6 +81,15 @@ function toChatTurnEvent(eventType: string | undefined, data: unknown): ChatTurn
       const message = (data as { message?: string } | null)?.message ?? 'Erro desconhecido';
       return { type: 'failed', reason: message };
     }
+    case 'memoryProposal': {
+      const proposals = (data as { proposals?: unknown } | null)?.proposals;
+      return {
+        type: 'memoryProposal',
+        proposals: Array.isArray(proposals)
+          ? proposals.filter((p): p is string => typeof p === 'string' && p.length > 0)
+          : [],
+      };
+    }
     default:
       // Ignore keepalives/comments and events we don't surface to the UI
       // (e.g. `user`/`assistant` message-id hints from the authed endpoint).

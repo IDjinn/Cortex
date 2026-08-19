@@ -27,3 +27,9 @@ export {
   PROVIDER_LABEL,
 } from './providersStore';
 export { useLocalEndpointStore, localEndpoint } from './localEndpointStore';
+export {
+  useMemoriesStore,
+  relevantMemories,
+  type MemoriesState,
+  type CreateMemoryInput,
+} from './memoriesStore';

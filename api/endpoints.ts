@@ -5,7 +5,10 @@ import type {
   ConversationDetailResponse,
   ConversationResponse,
   ImportConversationDto,
+  ImportMemoryDto,
   ImportResultResponse,
+  MemoryResponse,
+  MemoryScope,
   ModelResponse,
   ProviderKeyResponse,
   ProviderResponse,
@@ -80,10 +83,11 @@ export function deleteConversation(id: string): Promise<void> {
 
 export function importConversations(
   conversations: ImportConversationDto[],
+  memories?: ImportMemoryDto[],
 ): Promise<ImportResultResponse> {
   return apiRequest<ImportResultResponse>('/api/conversations/import', {
     method: 'POST',
-    body: { conversations },
+    body: { conversations, memories },
   });
 }
 
@@ -112,6 +116,30 @@ export function saveVaultKey(provider: ChatProviderKind, key: string): Promise<v
 
 export function removeVaultKey(provider: ChatProviderKind): Promise<void> {
   return apiRequest<void>(`/api/keys/${provider}`, { method: 'DELETE' });
+}
+
+// ---- Memories ----
+
+export function listMemories(scope?: MemoryScope, conversationId?: string): Promise<MemoryResponse[]> {
+  return apiRequest<MemoryResponse[]>('/api/memories', {
+    query: { scope, conversationId },
+  });
+}
+
+export function createMemory(input: {
+  scope: MemoryScope;
+  conversationId?: string;
+  content: string;
+}): Promise<MemoryResponse> {
+  return apiRequest<MemoryResponse>('/api/memories', { method: 'POST', body: input });
+}
+
+export function updateMemory(id: string, content: string): Promise<void> {
+  return apiRequest<void>(`/api/memories/${id}`, { method: 'PATCH', body: { content } });
+}
+
+export function deleteMemory(id: string): Promise<void> {
+  return apiRequest<void>(`/api/memories/${id}`, { method: 'DELETE' });
 }
 
 // ---- Models ----
