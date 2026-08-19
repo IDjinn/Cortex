@@ -1,6 +1,6 @@
 import { startAnonymousStream, startChatStream, type StreamHandle } from '@/api/sse';
 import { toast } from '@/components/feedback';
-import { useAuthStore, useConversationsStore, useGuestStore } from '@/stores';
+import { deviceKeyFor, useAuthStore, useConversationsStore, useGuestStore } from '@/stores';
 import type { AnonymousChatMessage, ChatProviderKind, ChatTurnEvent, MessageResponse } from '@/api/types';
 import * as Localization from 'expo-localization';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -170,6 +170,8 @@ export function useChatSession(id: string): UseChatSessionResult {
       setStreaming(true);
 
       let handle: StreamHandle;
+      // BYOK: device key proxied per request (header) — never stored server-side.
+      const providerKey = deviceKeyFor(conversation.provider);
       if (isGuest) {
         // Stateless: send the full history (everything except the empty placeholder).
         const all = useGuestStore.getState().messages(id);
@@ -182,6 +184,7 @@ export function useChatSession(id: string): UseChatSessionResult {
           model: conversation.model,
           messages: history,
           locale: deviceLocale(),
+          providerKey,
           onEvent: handleEvent,
           onError,
         });
@@ -190,6 +193,7 @@ export function useChatSession(id: string): UseChatSessionResult {
           conversationId: id,
           content,
           locale: deviceLocale(),
+          providerKey,
           onEvent: handleEvent,
           onError,
         });

@@ -80,6 +80,12 @@ export interface ProviderResponse {
   serverKeyConfigured: boolean;
 }
 
+/** Vault entry (GET /api/keys) — metadata only, key material never leaves the server. */
+export interface ProviderKeyResponse {
+  provider: ChatProviderKind;
+  updatedAt: string;
+}
+
 export interface ApiError {
   error: string;
   detail?: string | null;

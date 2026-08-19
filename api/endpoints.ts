@@ -5,6 +5,7 @@ import type {
   ConversationDetailResponse,
   ConversationResponse,
   ModelResponse,
+  ProviderKeyResponse,
   ProviderResponse,
   UserProfile,
 } from './types';
@@ -68,6 +69,20 @@ export function deleteConversation(id: string): Promise<void> {
 
 export function listProviders(): Promise<ProviderResponse[]> {
   return apiRequest<ProviderResponse[]>('/api/providers');
+}
+
+// ---- BYOK vault (server-side, encrypted at rest) ----
+
+export function listVaultKeys(): Promise<ProviderKeyResponse[]> {
+  return apiRequest<ProviderKeyResponse[]>('/api/keys');
+}
+
+export function saveVaultKey(provider: ChatProviderKind, key: string): Promise<void> {
+  return apiRequest<void>(`/api/keys/${provider}`, { method: 'PUT', body: { key } });
+}
+
+export function removeVaultKey(provider: ChatProviderKind): Promise<void> {
+  return apiRequest<void>(`/api/keys/${provider}`, { method: 'DELETE' });
 }
 
 // ---- Models ----

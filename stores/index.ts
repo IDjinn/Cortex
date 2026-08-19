@@ -20,3 +20,4 @@ export {
   type GuestState,
 } from './guestStore';
 export { useModelPrefsStore, type ModelPreference } from './modelPrefsStore';
+export { useKeysStore, deviceKeyFor, type DeviceKeys } from './keysStore';
