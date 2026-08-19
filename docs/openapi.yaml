@@ -1,10 +1,12 @@
 openapi: 3.0.4
 info:
   title: Cortex API
-  version: "1.0.0"
+  version: "2.0.0"
   description: |
-    Backend HTTP+SSE para o Cortex, o copiloto multi-provedor.
-    Todas as rotas (exceto `/api/auth/*`) exigem JWT Bearer.
+    Backend HTTP+SSE para o Cortex, o ambiente de IA multi-provedor.
+    Rotas com cadeado exigem JWT Bearer; as demais são anônimas.
+    Chaves BYOK viajam no header `X-Provider-Key` (por requisição, nunca persistidas
+    para uso anônimo); contas podem guardar chaves no cofre (`/api/keys`).
 servers:
   - url: http://localhost:5172
     description: Dev local
@@ -17,7 +19,17 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  parameters:
+    providerKey:
+      in: header
+      name: X-Provider-Key
+      required: false
+      schema: { type: string }
+      description: Chave BYOK do provedor (por requisição).
   schemas:
+    ProviderKind:
+      type: string
+      enum: [OpenRouter, Ollama, LmStudio, OpenAI, Anthropic, Gemini, Xai, Mistral, DeepSeek]
     UserProfile:
       type: object
       properties:
@@ -39,12 +51,22 @@ components:
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
-        provider: { type: string, enum: [OpenRouter, Ollama] }
+        provider: { $ref: '#/components/schemas/ProviderKind' }
         model: { type: string }
         pinned: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         messageCount: { type: integer }
+        fallbackProvider: { type: string, nullable: true }
+        fallbackModel: { type: string, nullable: true }
+    ConversationDetail:
+      allOf:
+        - $ref: '#/components/schemas/Conversation'
+        - type: object
+          properties:
+            messages:
+              type: array
+              items: { $ref: '#/components/schemas/Message' }
     Message:
       type: object
       properties:
@@ -56,6 +78,15 @@ components:
         tokensOut: { type: integer, nullable: true }
         error: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
+        costUsd: { type: number, nullable: true, description: Custo estimado do turno (USD). }
+    Provider:
+      type: object
+      properties:
+        kind: { $ref: '#/components/schemas/ProviderKind' }
+        name: { type: string }
+        isLocal: { type: boolean }
+        requiresKey: { type: boolean }
+        serverKeyConfigured: { type: boolean }
     Model:
       type: object
       properties:
@@ -63,8 +94,24 @@ components:
         name: { type: string }
         description: { type: string, nullable: true }
         contextLength: { type: integer, nullable: true }
-        promptPrice: { type: number, nullable: true }
-        completionPrice: { type: number, nullable: true }
+        promptPrice: { type: number, nullable: true, description: USD por 1M tokens de entrada. }
+        completionPrice: { type: number, nullable: true, description: USD por 1M tokens de saída. }
+        isDefault: { type: boolean }
+        supportsTools: { type: boolean, nullable: true }
+        supportsVision: { type: boolean, nullable: true }
+    ProviderKey:
+      type: object
+      properties:
+        provider: { $ref: '#/components/schemas/ProviderKind' }
+        updatedAt: { type: string, format: date-time }
+    Usage:
+      type: object
+      properties:
+        provider: { $ref: '#/components/schemas/ProviderKind' }
+        requests: { type: integer }
+        tokensIn: { type: integer }
+        tokensOut: { type: integer }
+        costUsd: { type: number, nullable: true }
     Error:
       type: object
       properties:
@@ -95,6 +142,18 @@ paths:
       responses:
         '302': { description: Redirect para o provedor }
 
+  /api/auth/{provider}/callback:
+    get:
+      security: []
+      summary: Callback OAuth — redireciona para cortex://auth/callback
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { type: string, enum: [google, github] }
+      responses:
+        '302': { description: Redirect com AuthResponse na query `data` }
+
   /api/auth/refresh:
     post:
       security: []
@@ -117,6 +176,12 @@ paths:
           description: Refresh inválido
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
+  /api/auth/logout:
+    post:
+      summary: Revoga o refresh token
+      responses:
+        '204': { description: Revogado }
+
   /api/me:
     get:
       summary: Perfil do usuário autenticado
@@ -125,9 +190,71 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/UserProfile' } } }
         '404': { description: Não encontrado }
 
+  /api/providers:
+    get:
+      security: []
+      summary: Catálogo de provedores (disponibilidade e requisito de chave)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Provider' } }
+
+  /api/models:
+    get:
+      security: []
+      summary: Modelos de um provedor (cache 10min; bypass com chave/baseUrl)
+      parameters:
+        - { in: query, name: provider, required: true, schema: { $ref: '#/components/schemas/ProviderKind' } }
+        - { in: query, name: refresh, schema: { type: boolean } }
+        - { in: query, name: baseUrl, schema: { type: string }, description: "Só provedores locais (LM Studio/llama.cpp/Ollama remoto)." }
+        - $ref: '#/components/parameters/providerKey'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Model' } }
+        '400':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /api/keys:
+    get:
+      summary: Provedores com chave no cofre da conta (nunca retorna a chave)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ProviderKey' } }
+
+  /api/keys/{provider}:
+    put:
+      summary: Salva a chave BYOK no cofre (criptografada em repouso)
+      parameters:
+        - { in: path, name: provider, required: true, schema: { $ref: '#/components/schemas/ProviderKind' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key: { type: string }
+      responses:
+        '204': { description: Salva }
+        '400':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    delete:
+      summary: Remove a chave do cofre
+      parameters:
+        - { in: path, name: provider, required: true, schema: { $ref: '#/components/schemas/ProviderKind' } }
+      responses:
+        '204': { description: Removida }
+        '404': { description: Não havia chave }
+
   /api/conversations:
     get:
-      summary: Lista conversas (mais recentes primeiro)
+      summary: Lista conversas (fixadas primeiro, depois recentes)
       responses:
         '200':
           content:
@@ -144,11 +271,52 @@ paths:
               required: [provider, model]
               properties:
                 title: { type: string }
-                provider: { type: string, enum: [OpenRouter, Ollama] }
+                provider: { $ref: '#/components/schemas/ProviderKind' }
                 model: { type: string }
       responses:
         '201':
           content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } }
+
+  /api/conversations/import:
+    post:
+      summary: Migração guest → conta (importa conversas do dispositivo)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversations]
+              properties:
+                conversations:
+                  type: array
+                  items:
+                    type: object
+                    required: [title, provider, model, pinned, messages]
+                    properties:
+                      title: { type: string }
+                      provider: { $ref: '#/components/schemas/ProviderKind' }
+                      model: { type: string }
+                      pinned: { type: boolean }
+                      messages:
+                        type: array
+                        items:
+                          type: object
+                          required: [role, content]
+                          properties:
+                            role: { type: string, enum: [User, Assistant, System] }
+                            content: { type: string }
+                            model: { type: string, nullable: true }
+                            tokensIn: { type: integer, nullable: true }
+                            tokensOut: { type: integer, nullable: true }
+                            error: { type: string, nullable: true }
+                            createdAt: { type: string, format: date-time, nullable: true }
+                            costUsd: { type: number, nullable: true }
+      responses:
+        '200':
+          description: "{ imported: n }"
+        '400':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   /api/conversations/{id}:
     get:
@@ -156,9 +324,9 @@ paths:
         - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
       responses:
         '200':
-          content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ConversationDetail' } } }
     patch:
-      summary: Atualiza título / pin
+      summary: Atualiza título / pin / modelo / reserva (fallback)
       parameters:
         - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
       requestBody:
@@ -169,29 +337,46 @@ paths:
               properties:
                 title: { type: string }
                 pinned: { type: boolean }
+                provider: { $ref: '#/components/schemas/ProviderKind' }
+                model: { type: string }
+                fallbackProvider: { type: string, description: String vazio limpa a reserva. }
+                fallbackModel: { type: string, description: String vazio limpa a reserva. }
       responses:
-        '200':
-          content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } }
+        '204': { description: Atualizada }
+        '404': { description: Não encontrada }
     delete:
       parameters:
         - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
       responses:
         '204': { description: Removida }
 
-  /api/chat/{conversationId}:
-    post:
-      summary: Streama uma rodada de chat (SSE)
+  /api/usage:
+    get:
+      summary: Uso de tokens e custo estimado do mês (por provedor)
       parameters:
-        - { in: path, name: conversationId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: month, schema: { type: string, description: "yyyy-MM (default: mês atual)" } }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Usage' } }
+
+  /api/chat:
+    post:
+      summary: Streama uma rodada de chat autenticada (SSE)
+      parameters:
+        - $ref: '#/components/parameters/providerKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [content]
+              required: [conversationId, content]
               properties:
+                conversationId: { type: string, format: uuid }
                 content: { type: string }
+                locale: { type: string }
       responses:
         '200':
           description: text/event-stream
@@ -200,21 +385,47 @@ paths:
               schema:
                 type: string
                 description: |
-                  Eventos SSE (cada um em uma linha `data: {json}\n\n`):
-                  - { type: "started", conversationId }
-                  - { type: "token", text }
-                  - { type: "usage", tokensIn, tokensOut }
-                  - { type: "completed", message }
-                  - { type: "failed", reason }
+                  Eventos SSE (`event: <tipo>` + `data: <json>`):
+                  - user { messageId } / assistant { messageId }
+                  - token { value }
+                  - toolCall { id, name, arguments } (contrato da Fase 4)
+                  - notice { message } (ex.: fallback acionado)
+                  - done { tokensIn, tokensOut, provider, model, costUsd }
+                  - error { message }
 
-  /api/models:
-    get:
-      summary: Lista modelos disponíveis por provedor (com cache de 10min)
+  /api/chat/anonymous:
+    post:
+      security: []
+      summary: Chat de convidado, stateless (SSE). Locais sempre; remotos exigem X-Provider-Key.
       parameters:
-        - { in: query, name: provider, required: true, schema: { type: string, enum: [OpenRouter, Ollama] } }
-        - { in: query, name: refresh, schema: { type: boolean } }
+        - $ref: '#/components/parameters/providerKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, messages]
+              properties:
+                provider: { $ref: '#/components/schemas/ProviderKind' }
+                model: { type: string, nullable: true }
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      role: { type: string, enum: [User, Assistant, System] }
+                      content: { type: string }
+                temperature: { type: number }
+                maxTokens: { type: integer }
+                locale: { type: string }
+                baseUrl: { type: string, description: "Só provedores locais." }
       responses:
         '200':
-          content:
-            application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/Model' } }
+          description: text/event-stream (token / usage / done / error)
+        '403':
+          description: Provedor remoto sem chave
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '429':
+          description: Limite de requisições anônimas por IP
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }

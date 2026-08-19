@@ -25,8 +25,8 @@ Mobile today, desktop next. Offline-first, secure, and anonymous by default. Com
 | Phase | Focus | Status |
 | ----- | ------------------------------------------ | ----------- |
 | 1 | Chat MVP | ✅ shipped |
-| 2 | Provider layer | ◀ next up |
-| 3 | Context engine (memories, skills, indexing, MCP) | planned |
+| 2 | Provider layer | ✅ shipped |
+| 3 | Context engine (memories, skills, indexing, MCP) | ◀ next up |
 | 4 | Agent mode (tools, automations, A2A) | planned |
 | 5 | Desktop + Cloud (sync, subscription) | planned |
 
@@ -38,37 +38,41 @@ Dependency chain: Phase 3 relies on Phase 2's capability metadata; Phase 4's too
 
 Shipped: OAuth (Google + GitHub) with JWT refresh; anonymous guest mode with on-device conversations (Ollama-only); conversation CRUD (create / rename / pin / delete); SSE streaming chat; markdown rendering; gray-first theme.
 
-## Phase 2 — Provider layer ◀ next up
+## Phase 2 — Provider layer ✅
+
+Shipped: model picker with search/context/price/capabilities (full OpenRouter catalog) and per-conversation switching; direct connectors (OpenAI, Anthropic, Gemini, xAI, Mistral, DeepSeek) with normalized streaming + tool-call contract behind the internal SSE events; capability metadata via `/api/models` and `/api/providers`; BYOK (device SecureStore keys proxied per request + encrypted server-side vault for accounts, resolved header > vault > server key); per-conversation and monthly cost accounting (`/api/usage`); manual routing fallback (tries the reserve provider when the primary fails before the first token); guest mode expanded to any local endpoint (custom `baseUrl` for LM Studio/llama.cpp/Ollama) and remote providers with the guest's own key; automatic guest → account migration on login.
+
+> Automatic cost/latency routing was descoped to Phase 4/5 — Phase 2 ships the manual per-conversation fallback only.
 
 **Epic: Model selection**
 
-- [ ] Model picker UI: provider × model, showing context window and price, with a persisted default per user and per conversation
+- [x] Model picker UI: provider × model, showing context window and price, with a persisted default per user and per conversation
 
 **Epic: Direct connectors (backend `IProvider` implementations)**
 
-- [ ] OpenAI connector
-- [ ] Anthropic connector
-- [ ] Google Gemini connector
-- [ ] xAI connector
-- [ ] Mistral connector
-- [ ] DeepSeek connector
-- [ ] Normalize streaming and tool-call formats behind the internal SSE contract
-- [ ] Capability metadata per model (tools, vision, context length) exposed via `/api/models`
+- [x] OpenAI connector
+- [x] Anthropic connector
+- [x] Google Gemini connector
+- [x] xAI connector
+- [x] Mistral connector
+- [x] DeepSeek connector
+- [x] Normalize streaming and tool-call formats behind the internal SSE contract
+- [x] Capability metadata per model (tools, vision, context length) exposed via `/api/models`
 
 **Epic: BYOK key vault**
 
-- [ ] On-device key storage (expo-secure-store); keys proxied per request and never persisted server-side for offline/guest use
-- [ ] Optional server-side vault (encrypted at rest) for cloud accounts
+- [x] On-device key storage (expo-secure-store); keys proxied per request and never persisted server-side for offline/guest use
+- [x] Optional server-side vault (encrypted at rest) for cloud accounts
 
 **Epic: Routing & cost**
 
-- [ ] Provider routing with fallback (availability, cost, latency)
-- [ ] Token usage & cost accounting per conversation and per month
+- [x] Provider routing with fallback (availability, cost, latency) — manual fallback per conversation; automatic routing moved to Phase 4/5
+- [x] Token usage & cost accounting per conversation and per month
 
 **Epic: Guest mode expansion**
 
-- [ ] Guest mode beyond Ollama: any local endpoint (LM Studio, llama.cpp) and user-supplied remote keys
-- [ ] Guest → account migration on login (use the prepared `guestSnapshot()`)
+- [x] Guest mode beyond Ollama: any local endpoint (LM Studio, llama.cpp) and user-supplied remote keys
+- [x] Guest → account migration on login (use the prepared `guestSnapshot()`)
 
 ## Phase 3 — Context engine
 

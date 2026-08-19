@@ -34,18 +34,23 @@ Remove-Item .expo -Recurse -Force -ErrorAction SilentlyContinue
 - **No commented-out code** unless explicitly requested.
 - **Auth gate**: `app/_layout.tsx` decides between `/login` and `(tabs)` based on `useAuthStore`. Do not add auth logic inside screens.
 - **JWT tokens**: in `expo-secure-store`, keys `cortex.access` / `cortex.refresh` / `cortex.expires`. `api/client.ts` does single-flight refresh on 401 and proactively 30s before expiry.
+- **BYOK keys**: device keys live in `expo-secure-store` as `cortex.key.<Provider>` (index of providers in AsyncStorage `cortex.keys.index.v1`, managed by `stores/keysStore.ts`). They travel per request as the `X-Provider-Key` header and are never logged. Authed users can also store keys in the server vault (`/api/keys`, applied server-side); resolution order is header > vault > server key.
+- **Providers**: `ChatProviderKind` = OpenRouter | Ollama | LmStudio | OpenAI | Anthropic | Gemini | Xai | Mistral | DeepSeek. `stores/providersStore.ts` is the single source of provider availability (local always; remote needs a device/vault/server key) and `PROVIDER_LABEL`.
+- **Model switching**: conversations are PATCHed with `{provider, model}` (authed) or `guestStore.setModel` (guest); empty-string `fallbackProvider`/`fallbackModel` clears the routing fallback.
+- **Guest**: guest chat goes through `POST /api/chat/anonymous` — local providers always, remote only with `X-Provider-Key`. A custom local endpoint (LM Studio/llama.cpp/Ollama elsewhere) is set in `stores/localEndpointStore.ts` and sent as `baseUrl`. On login, `authStore.applyAuth` imports the guest snapshot via `POST /api/conversations/import` and clears the guest store on success.
 
 ## Structure
 
 - `app/` — expo-router routes (typed)
-- `api/` — HTTP client, SSE, typed endpoints (mirror of backend DTOs)
+- `api/` — HTTP client, SSE, typed endpoints (mirror of backend DTOs), SecureStore wrapper
 - `components/ui/` — Button, IconButton, Card, Input, Avatar, Divider
 - `components/screens/` — screen styles (outside `app/` so they don't become routes)
-- `components/chat/` — Bubble (User/Assistant) with staggered entrance
+- `components/chat/` — Bubble (User/Assistant), ConversationView, ModelPickerSheet, Sidebar
+- `components/settings/` — ProviderKeysCard (BYOK), UsageCard (custo mensal), LocalEndpointCard
 - `components/sheets/` — BottomSheet with Pan gesture + velocity-based dismiss
 - `components/feedback/` — Toaster (Sonner-style) + toast() API
 - `components/markdown/` — MarkdownView for LLM output
-- `stores/` — Zustand: authStore, conversationsStore
+- `stores/` — Zustand: authStore (com migração guest→conta), conversationsStore, guestStore, modelPrefsStore, keysStore (BYOK device), providersStore (catálogo), localEndpointStore
 - `theme/` — colors, spacing, typography, motion, shadows, ThemeProvider
 - `config/` — reads `EXPO_PUBLIC_*` env with fallback to app.json extra
 
