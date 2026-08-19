@@ -15,6 +15,8 @@ export interface SessionConversation {
   title: string;
   model: string;
   provider: ChatProviderKind;
+  fallbackProvider: ChatProviderKind | null;
+  fallbackModel: string | null;
 }
 
 export interface UseChatSessionResult {
@@ -88,11 +90,29 @@ export function useChatSession(id: string): UseChatSessionResult {
   const conversation: SessionConversation | undefined = isGuest
     ? (() => {
         const c = guestConversations.find((cv) => cv.id === id);
-        return c ? { id: c.id, title: c.title, model: c.model, provider: c.provider } : undefined;
+        return c
+          ? {
+              id: c.id,
+              title: c.title,
+              model: c.model,
+              provider: c.provider,
+              fallbackProvider: null,
+              fallbackModel: null,
+            }
+          : undefined;
       })()
     : (() => {
         const c = authedById[id];
-        return c ? { id: c.id, title: c.title, model: c.model, provider: c.provider } : undefined;
+        return c
+          ? {
+              id: c.id,
+              title: c.title,
+              model: c.model,
+              provider: c.provider,
+              fallbackProvider: (c.fallbackProvider as ChatProviderKind | null) ?? null,
+              fallbackModel: c.fallbackModel ?? null,
+            }
+          : undefined;
       })();
 
   const messages: MessageResponse[] = isGuest
@@ -130,6 +150,7 @@ export function useChatSession(id: string): UseChatSessionResult {
         tokensOut: null,
         error: null,
         createdAt: now,
+        costUsd: null,
       };
       const assistantPlaceholder: MessageResponse = {
         id: uid('pending'),
@@ -140,6 +161,7 @@ export function useChatSession(id: string): UseChatSessionResult {
         tokensOut: null,
         error: null,
         createdAt: now,
+        costUsd: null,
       };
 
       appendMessage(userMsg);
@@ -152,10 +174,14 @@ export function useChatSession(id: string): UseChatSessionResult {
           updateLast(evt.text);
         } else if (evt.type === 'usage') {
           usage = { tokensIn: evt.tokensIn, tokensOut: evt.tokensOut };
+        } else if (evt.type === 'notice') {
+          toast.show(evt.message);
         } else if (evt.type === 'completed') {
           updateLast('', {
             tokensIn: evt.tokensIn ?? usage.tokensIn,
             tokensOut: evt.tokensOut ?? usage.tokensOut,
+            model: evt.model ?? conversation.model,
+            costUsd: evt.costUsd ?? null,
           });
         } else if (evt.type === 'failed') {
           toast.error('Falha no streaming', evt.reason);

@@ -32,6 +32,7 @@ export interface GuestMessage {
   tokensOut: number | null;
   error: string | null;
   createdAt: string;
+  costUsd: number | null;
 }
 
 export interface GuestCreateInput {

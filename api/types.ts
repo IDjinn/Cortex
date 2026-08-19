@@ -41,6 +41,8 @@ export interface ConversationResponse {
   createdAt: string;
   updatedAt: string;
   messageCount: number;
+  fallbackProvider: string | null;
+  fallbackModel: string | null;
 }
 
 export interface MessageResponse {
@@ -52,6 +54,8 @@ export interface MessageResponse {
   tokensOut: number | null;
   error: string | null;
   createdAt: string;
+  /** USD cost of the turn; null for local/free models. */
+  costUsd: number | null;
 }
 
 export interface ConversationDetailResponse extends Omit<ConversationResponse, 'messageCount'> {
@@ -100,9 +104,26 @@ export interface ApiError {
 export type ChatTurnEvent =
   | { type: 'token'; text: string }
   | { type: 'toolCall'; id: string; name: string; arguments: string }
+  | { type: 'notice'; message: string }
   | { type: 'usage'; tokensIn: number; tokensOut: number }
-  | { type: 'completed'; tokensIn: number | null; tokensOut: number | null }
+  | {
+      type: 'completed';
+      tokensIn: number | null;
+      tokensOut: number | null;
+      provider?: string;
+      model?: string;
+      costUsd?: number | null;
+    }
   | { type: 'failed'; reason: string };
+
+/** Monthly usage totals per provider (GET /api/usage?month=yyyy-MM). */
+export interface UsageResponse {
+  provider: ChatProviderKind;
+  requests: number;
+  tokensIn: number;
+  tokensOut: number;
+  costUsd: number | null;
+}
 
 /** Minimal message shape sent to the anonymous chat endpoint (stateless). */
 export interface AnonymousChatMessage {

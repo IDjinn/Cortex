@@ -24,6 +24,7 @@ interface ConversationsState {
   rename: (id: string, title: string) => Promise<void>;
   togglePin: (id: string) => Promise<void>;
   setModel: (id: string, provider: ConversationResponse['provider'], model: string) => Promise<void>;
+  setFallback: (id: string, provider: string | null, model: string | null) => Promise<void>;
   remove: (id: string) => Promise<void>;
   appendLocalMessage: (id: string, msg: ConversationDetailResponse['messages'][number]) => void;
   updateLastMessage: (
@@ -76,6 +77,8 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       createdAt: created.createdAt,
       updatedAt: created.updatedAt,
       messageCount: created.messages.length,
+      fallbackProvider: created.fallbackProvider,
+      fallbackModel: created.fallbackModel,
     };
     set((state) => ({
       list: [listItem, ...state.list],
@@ -111,6 +114,18 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     set((state) => ({
       list: state.list.map((c) => (c.id === id ? { ...c, provider, model } : c)),
       byId: state.byId[id] ? { ...state.byId, [id]: { ...state.byId[id], provider, model } } : state.byId,
+    }));
+  },
+
+  setFallback: async (id, provider, model) => {
+    await apiUpdate(id, { fallbackProvider: provider ?? '', fallbackModel: model ?? '' });
+    set((state) => ({
+      list: state.list.map((c) =>
+        c.id === id ? { ...c, fallbackProvider: provider, fallbackModel: model } : c,
+      ),
+      byId: state.byId[id]
+        ? { ...state.byId, [id]: { ...state.byId[id], fallbackProvider: provider, fallbackModel: model } }
+        : state.byId,
     }));
   },
 

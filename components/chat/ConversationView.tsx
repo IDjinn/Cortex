@@ -83,6 +83,26 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
     [id, isGuest],
   );
 
+  // Configure/clear the routing fallback (authed conversations only).
+  const handleSelectFallback = useCallback(
+    async (provider: ChatProviderKind | null, model: string | null) => {
+      setPickerOpen(false);
+      try {
+        await useConversationsStore.getState().setFallback(id, provider, model);
+        toast.show(provider ? 'Reserva configurada.' : 'Reserva removida.');
+      } catch (e) {
+        toast.error('Não foi possível configurar a reserva', String(e));
+      }
+    },
+    [id],
+  );
+
+  // Estimated conversation cost so far (null when every model is local/free).
+  const totalCost = useMemo(
+    () => messages.reduce((acc, m) => acc + (m.costUsd ?? 0), 0),
+    [messages],
+  );
+
   // Autoscroll on new content. Trigger is the message count.
   const messageCount = messages.length;
   const autoscroll = useCallback(() => {
@@ -192,7 +212,11 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
                     animateIn={i < 6}
                     avatarName="Cortex"
                     meta={
-                      m.tokensIn && m.tokensOut ? `${m.tokensIn}/${m.tokensOut} tokens` : undefined
+                      m.tokensIn && m.tokensOut
+                        ? `${m.tokensIn}/${m.tokensOut} tokens${
+                            m.costUsd != null ? ` · $${m.costUsd.toFixed(4)}` : ''
+                          }`
+                        : undefined
                     }
                   >
                     {m.content || (streaming && i === messages.length - 1 ? '…' : '') ? (
@@ -204,6 +228,11 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
             )}
             {streaming ? (
               <TypingIndicator>Cortex está escrevendo…</TypingIndicator>
+            ) : null}
+            {totalCost > 0 ? (
+              <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', paddingTop: 4 }}>
+                Custo estimado da conversa: ${totalCost.toFixed(4)}
+              </Text>
             ) : null}
           </ChatScrollContent>
         </ChatScroll>
@@ -246,6 +275,12 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
         title="Trocar modelo"
         selection={conversation ? { provider: conversation.provider, model: conversation.model } : null}
         onSelect={handleSelectModel}
+        fallbackSelection={
+          conversation?.fallbackProvider && conversation.fallbackModel
+            ? { provider: conversation.fallbackProvider, model: conversation.fallbackModel }
+            : null
+        }
+        onSelectFallback={isGuest ? undefined : handleSelectFallback}
       />
     </ChatScreenContainer>
   );

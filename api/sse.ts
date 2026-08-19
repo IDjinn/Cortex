@@ -56,13 +56,26 @@ function toChatTurnEvent(eventType: string | undefined, data: unknown): ChatTurn
       const d = data as { id?: string; name?: string; arguments?: string } | null;
       return { type: 'toolCall', id: d?.id ?? '', name: d?.name ?? '', arguments: d?.arguments ?? '' };
     }
+    case 'notice': {
+      const d = data as { message?: string } | null;
+      return { type: 'notice', message: d?.message ?? '' };
+    }
     case 'usage': {
       const d = data as { tokensIn?: number; tokensOut?: number } | null;
       return { type: 'usage', tokensIn: d?.tokensIn ?? 0, tokensOut: d?.tokensOut ?? 0 };
     }
     case 'done': {
-      const d = data as { tokensIn?: number; tokensOut?: number } | null;
-      return { type: 'completed', tokensIn: d?.tokensIn ?? null, tokensOut: d?.tokensOut ?? null };
+      const d = data as
+        | { tokensIn?: number; tokensOut?: number; provider?: string; model?: string; costUsd?: number | null }
+        | null;
+      return {
+        type: 'completed',
+        tokensIn: d?.tokensIn ?? null,
+        tokensOut: d?.tokensOut ?? null,
+        provider: d?.provider,
+        model: d?.model,
+        costUsd: d?.costUsd ?? null,
+      };
     }
     case 'error': {
       const message = (data as { message?: string } | null)?.message ?? 'Erro desconhecido';

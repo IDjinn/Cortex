@@ -7,6 +7,7 @@ import type {
   ModelResponse,
   ProviderKeyResponse,
   ProviderResponse,
+  UsageResponse,
   UserProfile,
 } from './types';
 
@@ -53,7 +54,15 @@ export function getConversation(id: string): Promise<ConversationDetailResponse>
 
 export function updateConversation(
   id: string,
-  patch: { title?: string; pinned?: boolean; provider?: ChatProviderKind; model?: string },
+  patch: {
+    title?: string;
+    pinned?: boolean;
+    provider?: ChatProviderKind;
+    model?: string;
+    /** Empty string clears the fallback. */
+    fallbackProvider?: string;
+    fallbackModel?: string;
+  },
 ): Promise<void> {
   return apiRequest<void>(`/api/conversations/${id}`, {
     method: 'PATCH',
@@ -63,6 +72,13 @@ export function updateConversation(
 
 export function deleteConversation(id: string): Promise<void> {
   return apiRequest<void>(`/api/conversations/${id}`, { method: 'DELETE' });
+}
+
+// ---- Usage & cost ----
+
+/** Monthly usage per provider; month = "yyyy-MM" (defaults to current). */
+export function getUsage(month?: string): Promise<UsageResponse[]> {
+  return apiRequest<UsageResponse[]>('/api/usage', { query: { month } });
 }
 
 // ---- Providers ----

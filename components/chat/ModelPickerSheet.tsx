@@ -17,6 +17,9 @@ export interface ModelPickerSheetProps {
   isGuest: boolean;
   selection: { provider: ChatProviderKind; model: string } | null;
   onSelect: (provider: ChatProviderKind, model: string) => void;
+  /** When provided, shows the "Reserva" (fallback routing) segment. */
+  fallbackSelection?: { provider: ChatProviderKind; model: string } | null;
+  onSelectFallback?: (provider: ChatProviderKind | null, model: string | null) => void;
   /** Sheet heading — defaults to "Modelo". */
   title?: string;
 }
@@ -39,13 +42,23 @@ function formatPrice(prompt: number | null, completion: number | null): string |
  * context window and price per model, tool/vision capability badges. The
  * OpenRouter catalog is fully listed — search + price sort keep it navigable.
  */
-export function ModelPickerSheet({ visible, onClose, isGuest, selection, onSelect, title }: ModelPickerSheetProps) {
+export function ModelPickerSheet({
+  visible,
+  onClose,
+  isGuest,
+  selection,
+  onSelect,
+  fallbackSelection,
+  onSelectFallback,
+  title,
+}: ModelPickerSheetProps) {
   const { colors } = useTheme();
   const hydrated = useProvidersStore((s) => s.hydrated);
   const models = useProvidersStore((s) => s.models);
   const hydrateProviders = useProvidersStore((s) => s.hydrate);
   const hydrateKeys = useKeysStore((s) => s.hydrate);
   const [query, setQuery] = useState('');
+  const [mode, setMode] = useState<'primary' | 'fallback'>('primary');
 
   useEffect(() => {
     if (!visible) return;
@@ -78,6 +91,50 @@ export function ModelPickerSheet({ visible, onClose, isGuest, selection, onSelec
     <BottomSheet visible={visible} onClose={onClose}>
       <View style={{ padding: 16, gap: 10 }}>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>{title ?? 'Modelo'}</Text>
+        {onSelectFallback ? (
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['primary', 'fallback'] as const).map((m) => {
+              const active = mode === m;
+              const label = m === 'primary' ? 'Principal' : 'Reserva (fallback)';
+              return (
+                <Pressable
+                  key={m}
+                  onPress={() => setMode(m)}
+                  accessibilityRole="button"
+                  accessibilityLabel={label}
+                  style={{
+                    flex: 1,
+                    alignItems: 'center',
+                    paddingVertical: 8,
+                    borderRadius: 10,
+                    backgroundColor: active ? colors.surfaceOverlay : colors.surface,
+                    borderWidth: 1,
+                    borderColor: active ? colors.accent : colors.border,
+                  }}
+                >
+                  <Text style={{ color: active ? colors.accent : colors.textSecondary, fontSize: 13, fontWeight: '600' }}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+        {mode === 'fallback' ? (
+          <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+            O reserva assume a conversa quando o modelo principal falha antes de gerar qualquer token.
+          </Text>
+        ) : null}
+        {mode === 'fallback' && fallbackSelection ? (
+          <Pressable
+            onPress={() => onSelectFallback?.(null, null)}
+            accessibilityRole="button"
+            accessibilityLabel="Remover reserva"
+            style={{ paddingVertical: 6 }}
+          >
+            <Text style={{ color: colors.danger, fontSize: 13 }}>Remover reserva</Text>
+          </Pressable>
+        ) : null}
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -124,6 +181,14 @@ export function ModelPickerSheet({ visible, onClose, isGuest, selection, onSelec
                 >
                   {PROVIDER_LABEL[item.provider]}
                 </Text>
+              ) : mode === 'fallback' && onSelectFallback ? (
+                <ModelRow
+                  model={item.model}
+                  selected={
+                    fallbackSelection?.provider === item.provider && fallbackSelection.model === item.model.id
+                  }
+                  onPress={() => onSelectFallback(item.provider, item.model.id)}
+                />
               ) : (
                 <ModelRow
                   model={item.model}
