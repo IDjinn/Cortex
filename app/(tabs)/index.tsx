@@ -1,10 +1,10 @@
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconButton } from '@/components/ui';
-import { ConversationView, Sidebar } from '@/components/chat';
+import { ConversationView, ModelPickerSheet, Sidebar } from '@/components/chat';
 import { BottomSheet } from '@/components/sheets';
 import { useOAuthLogin, type OAuthProvider } from '@/hooks/useOAuthLogin';
 import { toast } from '@/components/feedback';
@@ -13,11 +13,12 @@ import {
   useAuthStore,
   useConversationsStore,
   useGuestStore,
+  useKeysStore,
   useModelPrefsStore,
 } from '@/stores';
-import { listModels } from '@/api';
+import { pickDefaultModel, PROVIDER_LABEL, useProvidersStore } from '@/stores/providersStore';
 import { useTheme } from '@/theme';
-import type { ChatProviderKind, ModelResponse } from '@/api/types';
+import type { ChatProviderKind } from '@/api/types';
 
 import {
   Brand,
@@ -41,50 +42,7 @@ import {
 
 const LOGO = require('@/assets/images/logo.png');
 
-/** Local providers usable for new conversations (OpenRouter requires login). */
-const LOCAL_PROVIDERS: ChatProviderKind[] = ['Ollama', 'LmStudio'];
-const PROVIDER_LABEL: Record<ChatProviderKind, string> = {
-  OpenRouter: 'OpenRouter',
-  Ollama: 'Ollama',
-  LmStudio: 'LM Studio',
-  OpenAI: 'OpenAI',
-  Anthropic: 'Anthropic',
-  Gemini: 'Gemini',
-  Xai: 'xAI',
-  Mistral: 'Mistral',
-  DeepSeek: 'DeepSeek',
-};
-
 type DefaultModel = { provider: ChatProviderKind; model: string } | null;
-type PickerGroup = { provider: ChatProviderKind; models: ModelResponse[] };
-
-/**
- * Default model for new conversations: the user's saved preference when the
- * model is still installed, else the server-configured default (isDefault),
- * else the first listed model of any reachable local provider.
- */
-async function getDefaultModel(): Promise<DefaultModel> {
-  const pref = useModelPrefsStore.getState().preferred;
-  if (pref) {
-    try {
-      const models = await listModels(pref.provider);
-      if (models.some((m) => m.id === pref.model)) return pref;
-    } catch {
-      // Preferred provider unreachable — fall through to server defaults.
-    }
-  }
-  for (const provider of LOCAL_PROVIDERS) {
-    try {
-      const models = await listModels(provider);
-      if (models.length === 0) continue;
-      const def = models.find((m) => m.isDefault);
-      return { provider, model: (def ?? models[0]).id };
-    } catch {
-      // Provider unreachable — try the next one.
-    }
-  }
-  throw new Error('Nenhum modelo disponível no servidor.');
-}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -109,14 +67,19 @@ export default function HomeScreen() {
   // Model selector (chip + sheet) for new conversations.
   const [selection, setSelection] = useState<DefaultModel>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerLoading, setPickerLoading] = useState(false);
-  const [pickerGroups, setPickerGroups] = useState<PickerGroup[]>([]);
 
   const { login: oauthLogin, pending: oauthPending } = useOAuthLogin();
 
+  /** Default model from provider availability (saved preference > provider default). */
+  const getDefaultModel = useCallback(async (): Promise<DefaultModel> => {
+    await useKeysStore.getState().hydrate();
+    await useProvidersStore.getState().hydrate(isGuest);
+    return pickDefaultModel();
+  }, [isGuest]);
+
   useEffect(() => {
     getDefaultModel().then(setSelection).catch(() => {});
-  }, []);
+  }, [getDefaultModel]);
 
   const openSidebar = useCallback(() => {
     fetchAll().catch(() => {});
@@ -163,23 +126,8 @@ export default function HomeScreen() {
     [oauthLogin],
   );
 
-  const openPicker = useCallback(async () => {
+  const openPicker = useCallback(() => {
     setPickerOpen(true);
-    setPickerLoading(true);
-    try {
-      const groups = await Promise.all(
-        LOCAL_PROVIDERS.map(async (provider) => {
-          try {
-            return { provider, models: await listModels(provider) };
-          } catch {
-            return { provider, models: [] as ModelResponse[] };
-          }
-        }),
-      );
-      setPickerGroups(groups.filter((g) => g.models.length > 0));
-    } finally {
-      setPickerLoading(false);
-    }
   }, []);
 
   const handleChooseModel = useCallback(
@@ -223,7 +171,7 @@ export default function HomeScreen() {
     } finally {
       setStarting(false);
     }
-  }, [input, starting, isGuest, selection, createGuest, createAuthed]);
+  }, [input, starting, isGuest, selection, createGuest, createAuthed, getDefaultModel]);
 
   const selectionLabel = selection
     ? `${PROVIDER_LABEL[selection.provider]} · ${selection.model}`
@@ -406,75 +354,13 @@ export default function HomeScreen() {
         </View>
       </BottomSheet>
 
-      <BottomSheet visible={pickerOpen} onClose={() => setPickerOpen(false)}>
-        <View style={{ padding: 16, gap: 8 }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-            Modelo
-          </Text>
-          {pickerLoading ? (
-            <ActivityIndicator color={colors.accent} style={{ paddingVertical: 24 }} />
-          ) : pickerGroups.length === 0 ? (
-            <Text style={{ color: colors.textSecondary, paddingVertical: 24, textAlign: 'center' }}>
-              Nenhum modelo disponível. Verifique se o Ollama ou o LM Studio está rodando.
-            </Text>
-          ) : (
-            <ScrollView style={{ maxHeight: 360 }} nestedScrollEnabled>
-              {pickerGroups.map((group) => (
-                <View key={group.provider} style={{ marginBottom: 12 }}>
-                  <Text
-                    style={{
-                      color: colors.textMuted,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      marginBottom: 4,
-                    }}
-                  >
-                    {PROVIDER_LABEL[group.provider]}
-                  </Text>
-                  {group.models.map((m) => {
-                    const selected = selection?.provider === group.provider && selection.model === m.id;
-                    return (
-                      <Pressable
-                        key={m.id}
-                        onPress={() => handleChooseModel(group.provider, m.id)}
-                        style={({ pressed }) => ({
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          paddingVertical: 12,
-                          paddingHorizontal: 14,
-                          borderRadius: 12,
-                          backgroundColor: pressed
-                            ? colors.surfaceOverlay
-                            : selected
-                              ? colors.surfaceOverlay
-                              : colors.surface,
-                          borderWidth: 1,
-                          borderColor: selected ? colors.accent : colors.border,
-                        })}
-                      >
-                        <View style={{ flex: 1, marginRight: 12 }}>
-                          <Text style={{ color: colors.text, fontSize: 15, fontWeight: 600 }} numberOfLines={1}>
-                            {m.name}
-                          </Text>
-                          <Text style={{ color: colors.textMuted, fontSize: 12 }} numberOfLines={1}>
-                            {m.id}
-                            {m.isDefault ? ' · padrão' : ''}
-                          </Text>
-                        </View>
-                        {selected ? (
-                          <Text style={{ color: colors.accent, fontSize: 18 }}>✓</Text>
-                        ) : null}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-      </BottomSheet>
+      <ModelPickerSheet
+        visible={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        isGuest={isGuest}
+        selection={selection}
+        onSelect={handleChooseModel}
+      />
     </HomeContainer>
   );
 }

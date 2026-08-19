@@ -23,6 +23,7 @@ interface ConversationsState {
   create: (input: CreateConversationInput) => Promise<ConversationDetailResponse>;
   rename: (id: string, title: string) => Promise<void>;
   togglePin: (id: string) => Promise<void>;
+  setModel: (id: string, provider: ConversationResponse['provider'], model: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
   appendLocalMessage: (id: string, msg: ConversationDetailResponse['messages'][number]) => void;
   updateLastMessage: (
@@ -84,18 +85,32 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   },
 
   rename: async (id, title) => {
-    const updated = await apiUpdate(id, { title });
+    await apiUpdate(id, { title });
     set((state) => ({
-      list: state.list.map((c) => (c.id === id ? updated : c)),
+      list: state.list.map((c) =>
+        c.id === id ? { ...c, title: title.trim() || 'Nova conversa' } : c,
+      ),
+      byId: state.byId[id]
+        ? { ...state.byId, [id]: { ...state.byId[id], title: title.trim() || 'Nova conversa' } }
+        : state.byId,
     }));
   },
 
   togglePin: async (id) => {
     const current = get().list.find((c) => c.id === id);
     const pinned = !current?.pinned;
-    const updated = await apiUpdate(id, { pinned });
+    await apiUpdate(id, { pinned });
     set((state) => ({
-      list: state.list.map((c) => (c.id === id ? updated : c)),
+      list: state.list.map((c) => (c.id === id ? { ...c, pinned } : c)),
+      byId: state.byId[id] ? { ...state.byId, [id]: { ...state.byId[id], pinned } } : state.byId,
+    }));
+  },
+
+  setModel: async (id, provider, model) => {
+    await apiUpdate(id, { provider, model });
+    set((state) => ({
+      list: state.list.map((c) => (c.id === id ? { ...c, provider, model } : c)),
+      byId: state.byId[id] ? { ...state.byId, [id]: { ...state.byId[id], provider, model } } : state.byId,
     }));
   },
 

@@ -21,3 +21,8 @@ export {
 } from './guestStore';
 export { useModelPrefsStore, type ModelPreference } from './modelPrefsStore';
 export { useKeysStore, deviceKeyFor, type DeviceKeys } from './keysStore';
+export {
+  useProvidersStore,
+  pickDefaultModel,
+  PROVIDER_LABEL,
+} from './providersStore';

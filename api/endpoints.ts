@@ -53,9 +53,9 @@ export function getConversation(id: string): Promise<ConversationDetailResponse>
 
 export function updateConversation(
   id: string,
-  patch: { title?: string; pinned?: boolean },
-): Promise<ConversationResponse> {
-  return apiRequest<ConversationResponse>(`/api/conversations/${id}`, {
+  patch: { title?: string; pinned?: boolean; provider?: ChatProviderKind; model?: string },
+): Promise<void> {
+  return apiRequest<void>(`/api/conversations/${id}`, {
     method: 'PATCH',
     body: patch,
   });

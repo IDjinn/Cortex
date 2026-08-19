@@ -51,6 +51,7 @@ export interface GuestState {
   updateLastMessage: (id: string, content: string, patch?: Partial<GuestMessage>) => void;
   rename: (id: string, title: string) => void;
   togglePin: (id: string) => void;
+  setModel: (id: string, provider: ChatProviderKind, model: string) => void;
   remove: (id: string) => void;
   clear: () => void;
 }
@@ -133,6 +134,10 @@ export const useGuestStore = create<GuestState>()(
         const current = get().conversations.find((c) => c.id === id);
         if (!current) return;
         set((state) => ({ conversations: touch(state.conversations, id, { pinned: !current.pinned }) }));
+      },
+
+      setModel: (id, provider, model) => {
+        set((state) => ({ conversations: touch(state.conversations, id, { provider, model }) }));
       },
 
       remove: (id) => {

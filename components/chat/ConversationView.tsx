@@ -4,6 +4,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   Text,
   View,
@@ -13,7 +14,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar, IconButton } from '@/components/ui';
 import { MarkdownView } from '@/components/markdown';
 import { useChatSession } from '@/hooks/useChatSession';
+import { selectIsGuest, useAuthStore, useConversationsStore, useGuestStore } from '@/stores';
+import type { ChatProviderKind } from '@/api/types';
+import { PROVIDER_LABEL } from '@/stores/providersStore';
+import { toast } from '@/components/feedback';
 import { useTheme } from '@/theme';
+
+import { ModelPickerSheet } from './ModelPickerSheet';
 
 import { AssistantBubble, UserBubble } from './Bubble';
 import {
@@ -50,12 +57,31 @@ interface ConversationViewProps {
 export function ConversationView({ id, initial, onExit, onOpenSidebar }: ConversationViewProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const isGuest = useAuthStore(selectIsGuest);
 
   const { conversation, messages, loading, streaming, error, send, cancel } = useChatSession(id);
 
   const [input, setInput] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const pendingInitialRef = useRef<string | null>(initial ?? null);
+
+  // Switch the conversation's provider × model (persisted server-side or on-device).
+  const handleSelectModel = useCallback(
+    async (provider: ChatProviderKind, model: string) => {
+      setPickerOpen(false);
+      try {
+        if (isGuest) {
+          useGuestStore.getState().setModel(id, provider, model);
+        } else {
+          await useConversationsStore.getState().setModel(id, provider, model);
+        }
+      } catch (e) {
+        toast.error('Não foi possível trocar o modelo', String(e));
+      }
+    },
+    [id, isGuest],
+  );
 
   // Autoscroll on new content. Trigger is the message count.
   const messageCount = messages.length;
@@ -109,7 +135,17 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
         ) : null}
         <ChatHeaderMeta>
           <ChatHeaderTitle numberOfLines={1}>{conversation?.title ?? 'Conversa'}</ChatHeaderTitle>
-          <ChatHeaderSubtitle numberOfLines={1}>{conversation?.model}</ChatHeaderSubtitle>
+          <Pressable
+            onPress={() => setPickerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Trocar modelo"
+          >
+            <ChatHeaderSubtitle numberOfLines={1}>
+              {conversation
+                ? `${PROVIDER_LABEL[conversation.provider]} · ${conversation.model}`
+                : '—'}
+            </ChatHeaderSubtitle>
+          </Pressable>
         </ChatHeaderMeta>
         {streaming ? (
           <IconButton
@@ -202,6 +238,15 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
           </ComposerRow>
         </ChatComposer>
       </KeyboardAvoidingView>
+
+      <ModelPickerSheet
+        visible={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        isGuest={isGuest}
+        title="Trocar modelo"
+        selection={conversation ? { provider: conversation.provider, model: conversation.model } : null}
+        onSelect={handleSelectModel}
+      />
     </ChatScreenContainer>
   );
 }
