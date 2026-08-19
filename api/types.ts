@@ -125,6 +125,31 @@ export interface UsageResponse {
   costUsd: number | null;
 }
 
+// ---- Guest → account migration (POST /api/conversations/import) ----
+
+export interface ImportMessageDto {
+  role: MessageRole;
+  content: string;
+  model: string | null;
+  tokensIn: number | null;
+  tokensOut: number | null;
+  error: string | null;
+  createdAt: string;
+  costUsd?: number | null;
+}
+
+export interface ImportConversationDto {
+  title: string;
+  provider: ChatProviderKind;
+  model: string;
+  pinned: boolean;
+  messages: ImportMessageDto[];
+}
+
+export interface ImportResultResponse {
+  imported: number;
+}
+
 /** Minimal message shape sent to the anonymous chat endpoint (stateless). */
 export interface AnonymousChatMessage {
   role: MessageRole;

@@ -1,6 +1,7 @@
 import { startAnonymousStream, startChatStream, type StreamHandle } from '@/api/sse';
 import { toast } from '@/components/feedback';
 import { deviceKeyFor, useAuthStore, useConversationsStore, useGuestStore } from '@/stores';
+import { localEndpoint } from '@/stores/localEndpointStore';
 import type { AnonymousChatMessage, ChatProviderKind, ChatTurnEvent, MessageResponse } from '@/api/types';
 import * as Localization from 'expo-localization';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -205,12 +206,14 @@ export function useChatSession(id: string): UseChatSessionResult {
           role: m.role,
           content: m.content,
         }));
+        const isLocal = conversation.provider === 'Ollama' || conversation.provider === 'LmStudio';
         handle = startAnonymousStream({
           provider: conversation.provider,
           model: conversation.model,
           messages: history,
           locale: deviceLocale(),
           providerKey,
+          ...(isLocal ? { baseUrl: localEndpoint() } : {}),
           onEvent: handleEvent,
           onError,
         });

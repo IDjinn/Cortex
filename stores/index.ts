@@ -26,3 +26,4 @@ export {
   pickDefaultModel,
   PROVIDER_LABEL,
 } from './providersStore';
+export { useLocalEndpointStore, localEndpoint } from './localEndpointStore';

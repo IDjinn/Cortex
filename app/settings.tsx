@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar, Button, Card, Divider, IconButton } from '@/components/ui';
 import { ProviderKeysCard } from '@/components/settings/ProviderKeysCard';
 import { UsageCard } from '@/components/settings/UsageCard';
+import { LocalEndpointCard } from '@/components/settings/LocalEndpointCard';
 import { toast } from '@/components/feedback';
 import { selectIsGuest, useAuthStore, useConversationsStore, useGuestStore } from '@/stores';
 import { useTheme, useThemeControls } from '@/theme';
@@ -100,6 +101,8 @@ export default function SettingsScreen() {
         </Card>
 
         <ProviderKeysCard />
+
+        <LocalEndpointCard />
 
         {isGuest ? null : <UsageCard />}
 

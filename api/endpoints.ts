@@ -4,6 +4,8 @@ import type {
   ChatProviderKind,
   ConversationDetailResponse,
   ConversationResponse,
+  ImportConversationDto,
+  ImportResultResponse,
   ModelResponse,
   ProviderKeyResponse,
   ProviderResponse,
@@ -72,6 +74,17 @@ export function updateConversation(
 
 export function deleteConversation(id: string): Promise<void> {
   return apiRequest<void>(`/api/conversations/${id}`, { method: 'DELETE' });
+}
+
+// ---- Guest → account migration ----
+
+export function importConversations(
+  conversations: ImportConversationDto[],
+): Promise<ImportResultResponse> {
+  return apiRequest<ImportResultResponse>('/api/conversations/import', {
+    method: 'POST',
+    body: { conversations },
+  });
 }
 
 // ---- Usage & cost ----

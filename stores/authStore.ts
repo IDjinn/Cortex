@@ -1,10 +1,47 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
+import { importConversations } from '@/api';
 import { tokenStorage } from '@/api/client';
-import type { AuthResponse, UserProfile } from '@/api/types';
+import type { AuthResponse, ImportConversationDto, UserProfile } from '@/api/types';
+import { toast } from '@/components/feedback';
+import { guestSnapshot, useGuestStore } from './guestStore';
 
 export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'unauthenticated';
+
+/**
+ * Guest → account migration: imports on-device conversations on login. On
+ * failure the guest snapshot is kept so the next login can retry.
+ */
+async function migrateGuestConversations(): Promise<void> {
+  const snapshot = guestSnapshot();
+  if (snapshot.conversations.length === 0) return;
+  const payload: ImportConversationDto[] = snapshot.conversations.map((c) => ({
+    title: c.title,
+    provider: c.provider,
+    model: c.model,
+    pinned: c.pinned,
+    messages: (snapshot.messagesByConv[c.id] ?? []).map((m) => ({
+      role: m.role,
+      content: m.content,
+      model: m.model,
+      tokensIn: m.tokensIn,
+      tokensOut: m.tokensOut,
+      error: m.error,
+      createdAt: m.createdAt,
+      costUsd: m.costUsd,
+    })),
+  }));
+  try {
+    const { imported } = await importConversations(payload);
+    if (imported > 0) {
+      useGuestStore.getState().clear();
+      toast.success(`${imported} conversa${imported === 1 ? ' migrada' : 's migradas'}.`);
+    }
+  } catch {
+    toast.warning('Não foi possível migrar suas conversas de convidado.', 'Tentaremos novamente no próximo login.');
+  }
+}
 
 const GUEST_FLAG_KEY = 'cortex.guest.flag';
 
@@ -55,6 +92,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     await tokenStorage.set(auth);
     await AsyncStorage.setItem(GUEST_FLAG_KEY, '0');
     set({ status: 'authenticated', user: auth.user, guestMode: false, error: null });
+    await migrateGuestConversations();
   },
 
   signOut: async () => {
