@@ -47,6 +47,12 @@ const PROVIDER_LABEL: Record<ChatProviderKind, string> = {
   OpenRouter: 'OpenRouter',
   Ollama: 'Ollama',
   LmStudio: 'LM Studio',
+  OpenAI: 'OpenAI',
+  Anthropic: 'Anthropic',
+  Gemini: 'Gemini',
+  Xai: 'xAI',
+  Mistral: 'Mistral',
+  DeepSeek: 'DeepSeek',
 };
 
 type DefaultModel = { provider: ChatProviderKind; model: string } | null;

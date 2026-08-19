@@ -4,7 +4,16 @@
  */
 
 export type AuthProvider = 'Google' | 'GitHub';
-export type ChatProviderKind = 'OpenRouter' | 'Ollama' | 'LmStudio';
+export type ChatProviderKind =
+  | 'OpenRouter'
+  | 'Ollama'
+  | 'LmStudio'
+  | 'OpenAI'
+  | 'Anthropic'
+  | 'Gemini'
+  | 'Xai'
+  | 'Mistral'
+  | 'DeepSeek';
 export type MessageRole = 'User' | 'Assistant' | 'System' | 'Tool';
 
 export interface UserProfile {
@@ -58,6 +67,17 @@ export interface ModelResponse {
   completionPrice: number | null;
   /** True on the provider's configured default model (Providers:{Provider}:DefaultModel). */
   isDefault: boolean;
+  supportsTools: boolean | null;
+  supportsVision: boolean | null;
+}
+
+/** Provider catalog entry (GET /api/providers) — availability for picker and settings. */
+export interface ProviderResponse {
+  kind: ChatProviderKind;
+  name: string;
+  isLocal: boolean;
+  requiresKey: boolean;
+  serverKeyConfigured: boolean;
 }
 
 export interface ApiError {
@@ -73,6 +93,7 @@ export interface ApiError {
 
 export type ChatTurnEvent =
   | { type: 'token'; text: string }
+  | { type: 'toolCall'; id: string; name: string; arguments: string }
   | { type: 'usage'; tokensIn: number; tokensOut: number }
   | { type: 'completed'; tokensIn: number | null; tokensOut: number | null }
   | { type: 'failed'; reason: string };

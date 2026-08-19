@@ -73,6 +73,8 @@ export interface RequestOptions {
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined>;
   signal?: AbortSignal;
+  /** Extra headers (e.g. X-Provider-Key for BYOK requests). */
+  headers?: Record<string, string>;
   /** Skip auth header (e.g. for login endpoints). */
   noAuth?: boolean;
 }
@@ -92,6 +94,7 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
   const headers: Record<string, string> = {
     Accept: 'application/json',
     ...(opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    ...opts.headers,
   };
 
   if (!opts.noAuth) {

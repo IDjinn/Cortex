@@ -23,6 +23,8 @@ export interface StartStreamOptions {
   content: string;
   /** Device locale (e.g. "pt-BR") — server turns it into a language hint. */
   locale?: string;
+  /** BYOK key proxied per request via X-Provider-Key (never stored server-side). */
+  providerKey?: string;
   onEvent: EventCallback;
   onError?: (err: Error) => void;
 }
@@ -35,16 +37,24 @@ export interface StartAnonymousStreamOptions {
   maxTokens?: number;
   /** Device locale (e.g. "pt-BR") — server turns it into a language hint. */
   locale?: string;
+  /** BYOK key proxied per request via X-Provider-Key — required for remote providers as guest. */
+  providerKey?: string;
+  /** Custom local endpoint (LM Studio / llama.cpp on another host); local providers only. */
+  baseUrl?: string;
   onEvent: EventCallback;
   onError?: (err: Error) => void;
 }
 
-/** Maps a parsed SSE frame to a normalized event, or null to ignore it. */
+/** Maps a parsed SSE frame to a normalized event, or null to ignore. */
 function toChatTurnEvent(eventType: string | undefined, data: unknown): ChatTurnEvent | null {
   switch (eventType) {
     case 'token': {
       const text = (data as { value?: string } | null)?.value ?? '';
       return { type: 'token', text };
+    }
+    case 'toolCall': {
+      const d = data as { id?: string; name?: string; arguments?: string } | null;
+      return { type: 'toolCall', id: d?.id ?? '', name: d?.name ?? '', arguments: d?.arguments ?? '' };
     }
     case 'usage': {
       const d = data as { tokensIn?: number; tokensOut?: number } | null;
@@ -183,6 +193,7 @@ export function startChatStream(opts: StartStreamOptions): StreamHandle {
       const token = await getAuthHeader();
       const h: Record<string, string> = {};
       if (token) h.Authorization = `Bearer ${token}`;
+      if (opts.providerKey) h['X-Provider-Key'] = opts.providerKey;
       return h;
     },
     onEvent: opts.onEvent,
@@ -201,8 +212,13 @@ export function startAnonymousStream(opts: StartAnonymousStreamOptions): StreamH
       ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
       ...(opts.maxTokens !== undefined ? { maxTokens: opts.maxTokens } : {}),
       ...(opts.locale ? { locale: opts.locale } : {}),
+      ...(opts.baseUrl ? { baseUrl: opts.baseUrl } : {}),
     },
-    getHeaders: async () => ({}),
+    getHeaders: async () => {
+      const h: Record<string, string> = {};
+      if (opts.providerKey) h['X-Provider-Key'] = opts.providerKey;
+      return h;
+    },
     onEvent: opts.onEvent,
     onError: opts.onError,
   });

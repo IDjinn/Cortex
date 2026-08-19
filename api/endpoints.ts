@@ -5,6 +5,7 @@ import type {
   ConversationDetailResponse,
   ConversationResponse,
   ModelResponse,
+  ProviderResponse,
   UserProfile,
 } from './types';
 
@@ -63,8 +64,30 @@ export function deleteConversation(id: string): Promise<void> {
   return apiRequest<void>(`/api/conversations/${id}`, { method: 'DELETE' });
 }
 
+// ---- Providers ----
+
+export function listProviders(): Promise<ProviderResponse[]> {
+  return apiRequest<ProviderResponse[]>('/api/providers');
+}
+
 // ---- Models ----
 
-export function listModels(provider: ChatProviderKind, refresh = false): Promise<ModelResponse[]> {
-  return apiRequest<ModelResponse[]>('/api/models', { query: { provider, refresh } });
+export interface ListModelsOptions {
+  refresh?: boolean;
+  /** BYOK key proxied per request (header) — bypasses the server cache. */
+  providerKey?: string;
+  /** Custom local endpoint (LM Studio / llama.cpp on another host); local providers only. */
+  baseUrl?: string;
+}
+
+export function listModels(provider: ChatProviderKind, options: ListModelsOptions | boolean = {}): Promise<ModelResponse[]> {
+  // `boolean` kept for the old `refresh` positional signature.
+  const opts = typeof options === 'boolean' ? { refresh: options } : options;
+  const query: Record<string, string | boolean> = { provider };
+  if (opts.refresh) query.refresh = true;
+  if (opts.baseUrl) query.baseUrl = opts.baseUrl;
+  return apiRequest<ModelResponse[]>('/api/models', {
+    query,
+    headers: opts.providerKey ? { 'X-Provider-Key': opts.providerKey } : undefined,
+  });
 }
