@@ -21,6 +21,8 @@ type EventCallback = (event: ChatTurnEvent) => void;
 export interface StartStreamOptions {
   conversationId: string;
   content: string;
+  /** Device locale (e.g. "pt-BR") — server turns it into a language hint. */
+  locale?: string;
   onEvent: EventCallback;
   onError?: (err: Error) => void;
 }
@@ -31,6 +33,8 @@ export interface StartAnonymousStreamOptions {
   messages: AnonymousChatMessage[];
   temperature?: number;
   maxTokens?: number;
+  /** Device locale (e.g. "pt-BR") — server turns it into a language hint. */
+  locale?: string;
   onEvent: EventCallback;
   onError?: (err: Error) => void;
 }
@@ -170,7 +174,11 @@ function runStream(opts: RunOptions): StreamHandle {
 export function startChatStream(opts: StartStreamOptions): StreamHandle {
   return runStream({
     url: `${config.apiBaseUrl}/api/chat`,
-    body: { conversationId: opts.conversationId, content: opts.content },
+    body: {
+      conversationId: opts.conversationId,
+      content: opts.content,
+      ...(opts.locale ? { locale: opts.locale } : {}),
+    },
     getHeaders: async (): Promise<Record<string, string>> => {
       const token = await getAuthHeader();
       const h: Record<string, string> = {};
@@ -192,6 +200,7 @@ export function startAnonymousStream(opts: StartAnonymousStreamOptions): StreamH
       messages: opts.messages,
       ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
       ...(opts.maxTokens !== undefined ? { maxTokens: opts.maxTokens } : {}),
+      ...(opts.locale ? { locale: opts.locale } : {}),
     },
     getHeaders: async () => ({}),
     onEvent: opts.onEvent,

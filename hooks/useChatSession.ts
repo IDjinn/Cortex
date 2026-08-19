@@ -2,7 +2,13 @@ import { startAnonymousStream, startChatStream, type StreamHandle } from '@/api/
 import { toast } from '@/components/feedback';
 import { useAuthStore, useConversationsStore, useGuestStore } from '@/stores';
 import type { AnonymousChatMessage, ChatProviderKind, ChatTurnEvent, MessageResponse } from '@/api/types';
+import * as Localization from 'expo-localization';
 import { useCallback, useEffect, useRef, useState } from 'react';
+
+/** Device locale (e.g. "pt-BR") sent so the server can hint the response language. */
+function deviceLocale(): string | undefined {
+  return Localization.getLocales()[0]?.languageTag ?? undefined;
+}
 
 export interface SessionConversation {
   id: string;
@@ -175,6 +181,7 @@ export function useChatSession(id: string): UseChatSessionResult {
           provider: conversation.provider,
           model: conversation.model,
           messages: history,
+          locale: deviceLocale(),
           onEvent: handleEvent,
           onError,
         });
@@ -182,6 +189,7 @@ export function useChatSession(id: string): UseChatSessionResult {
         handle = startChatStream({
           conversationId: id,
           content,
+          locale: deviceLocale(),
           onEvent: handleEvent,
           onError,
         });

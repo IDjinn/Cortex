@@ -33,7 +33,6 @@ export const EmptyStage = styled.View`
 export const BrandLogo = styled.Image`
   width: 64px;
   height: 64px;
-  border-radius: ${({ theme }) => theme.radius.xxl}px;
   resize-mode: contain;
   margin-bottom: ${({ theme }) => theme.spacing.sm}px;
 `;
@@ -83,6 +82,22 @@ export const ProviderColumn = styled.View`
 export const ChatComposer = styled.View`
   padding-horizontal: ${({ theme }) => theme.spacing.lg}px;
   padding-top: ${({ theme }) => theme.spacing.sm}px;
+`;
+
+export const ModelChip = styled.Pressable`
+  align-self: center;
+  padding-horizontal: ${({ theme }) => theme.spacing.md}px;
+  padding-vertical: ${({ theme }) => theme.spacing.xs + 2}px;
+  border-radius: 999px;
+  background-color: ${({ theme }: { theme: Theme }) => theme.colors.surface};
+  border-width: 1px;
+  border-color: ${({ theme }: { theme: Theme }) => theme.colors.border};
+  margin-bottom: ${({ theme }) => theme.spacing.sm}px;
+`;
+
+export const ModelChipText = styled.Text`
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.typography.sizes.caption}px;
 `;
 
 export const ComposerRow = styled.View`

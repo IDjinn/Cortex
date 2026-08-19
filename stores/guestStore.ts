@@ -7,16 +7,16 @@ import type { ChatProviderKind, MessageRole } from '@/api/types';
 /**
  * Ephemeral, device-persisted conversations for guest (unauthenticated) users.
  *
- * Guests can only use local Ollama models. Conversations live on-device
- * (AsyncStorage) so they survive app restarts, but are never sent to the
- * server. When a guest logs in, the export shape (`snapshot()`) is ready to
+ * Guests can only use local models (Ollama, LM Studio). Conversations live
+ * on-device (AsyncStorage) so they survive app restarts, but are never sent to
+ * the server. When a guest logs in, the export shape (`snapshot()`) is ready to
  * be migrated to the server-side conversations store.
  */
 
 export interface GuestConversation {
   id: string;
   title: string;
-  provider: ChatProviderKind; // always 'Ollama' for guests
+  provider: ChatProviderKind; // local providers only ('Ollama' | 'LmStudio') for guests
   model: string;
   pinned: boolean;
   createdAt: string;

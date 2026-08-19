@@ -1,6 +1,7 @@
 import { apiRequest } from './client';
 import { config } from '@/config';
 import type {
+  ChatProviderKind,
   ConversationDetailResponse,
   ConversationResponse,
   ModelResponse,
@@ -29,7 +30,7 @@ export function getProfile(): Promise<UserProfile> {
 
 export interface CreateConversationInput {
   title?: string;
-  provider: 'OpenRouter' | 'Ollama';
+  provider: ChatProviderKind;
   model: string;
 }
 
@@ -64,6 +65,6 @@ export function deleteConversation(id: string): Promise<void> {
 
 // ---- Models ----
 
-export function listModels(provider: 'OpenRouter' | 'Ollama', refresh = false): Promise<ModelResponse[]> {
+export function listModels(provider: ChatProviderKind, refresh = false): Promise<ModelResponse[]> {
   return apiRequest<ModelResponse[]>('/api/models', { query: { provider, refresh } });
 }

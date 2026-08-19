@@ -19,3 +19,4 @@ export {
   type GuestCreateInput,
   type GuestState,
 } from './guestStore';
+export { useModelPrefsStore, type ModelPreference } from './modelPrefsStore';

@@ -4,7 +4,7 @@
  */
 
 export type AuthProvider = 'Google' | 'GitHub';
-export type ChatProviderKind = 'OpenRouter' | 'Ollama';
+export type ChatProviderKind = 'OpenRouter' | 'Ollama' | 'LmStudio';
 export type MessageRole = 'User' | 'Assistant' | 'System' | 'Tool';
 
 export interface UserProfile {
@@ -56,6 +56,8 @@ export interface ModelResponse {
   contextLength: number | null;
   promptPrice: number | null;
   completionPrice: number | null;
+  /** True on the provider's configured default model (Providers:{Provider}:DefaultModel). */
+  isDefault: boolean;
 }
 
 export interface ApiError {
