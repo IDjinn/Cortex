@@ -147,7 +147,7 @@ export function Sidebar({
       backdropOpacity.value = withTiming(0.5, { duration: ENTRY_MS });
     } else {
       translateX.value = withTiming(-DRAWER_WIDTH, { duration: EXIT_MS, easing: Easing.bezier(...easings.decelerate) });
-      backdropOpacity.value = withTiming(0.5, { duration: EXIT_MS });
+      backdropOpacity.value = withTiming(0, { duration: EXIT_MS });
     }
   }, [open, translateX, backdropOpacity]);
 
