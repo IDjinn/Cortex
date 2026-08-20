@@ -12,6 +12,7 @@ import type {
   ConversationDetailResponse,
   ConversationResponse,
 } from '@/api/types';
+import { useProjectsStore } from './projectsStore';
 
 interface ConversationsState {
   list: ConversationResponse[];
@@ -25,6 +26,7 @@ interface ConversationsState {
   togglePin: (id: string) => Promise<void>;
   setModel: (id: string, provider: ConversationResponse['provider'], model: string) => Promise<void>;
   setFallback: (id: string, provider: string | null, model: string | null) => Promise<void>;
+  moveToProject: (id: string, projectId: string | null) => Promise<void>;
   remove: (id: string) => Promise<void>;
   appendLocalMessage: (id: string, msg: ConversationDetailResponse['messages'][number]) => void;
   updateLastMessage: (
@@ -80,6 +82,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       updatedAt: created.updatedAt,
       fallbackProvider: created.fallbackProvider,
       fallbackModel: created.fallbackModel,
+      projectId: created.projectId,
       messages: [],
     };
     set((state) => ({
@@ -129,6 +132,16 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
         ? { ...state.byId, [id]: { ...state.byId[id], fallbackProvider: provider, fallbackModel: model } }
         : state.byId,
     }));
+  },
+
+  moveToProject: async (id, projectId) => {
+    await apiUpdate(id, { projectId: projectId ?? '' });
+    set((state) => ({
+      list: state.list.map((c) => (c.id === id ? { ...c, projectId } : c)),
+      byId: state.byId[id] ? { ...state.byId, [id]: { ...state.byId[id], projectId } } : state.byId,
+    }));
+    // Filing/unfiling changes per-project counts rendered by the sidebar tree.
+    await useProjectsStore.getState().fetchAll().catch(() => {});
   },
 
   remove: async (id) => {

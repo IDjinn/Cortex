@@ -77,6 +77,148 @@ export const HistoryEmptyText = styled.Text`
   text-align: center;
 `;
 
+// ---- Workspace sections ----
+
+export const SectionHeader = styled.View`
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: ${({ theme }) => theme.spacing.md}px ${({ theme }) => theme.spacing.xs}px
+    ${({ theme }) => theme.spacing.xs}px;
+`;
+
+export const SectionLabel = styled.Text`
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: ${({ theme }) => theme.typography.sizes.caption}px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+`;
+
+export const SectionAction = styled.Pressable`
+  padding: ${({ theme }) => theme.spacing.xs}px ${({ theme }) => theme.spacing.sm}px;
+  border-radius: ${({ theme }) => theme.radius.xs}px;
+`;
+
+export const SectionActionLabel = styled.Text`
+  color: ${({ theme }) => theme.colors.accentText};
+  font-size: 20;
+  font-weight: 600;
+`;
+
+export const SectionHint = styled.Text`
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: ${({ theme }) => theme.typography.sizes.caption}px;
+  padding: ${({ theme }) => theme.spacing.xs}px ${({ theme }) => theme.spacing.xs}px
+    ${({ theme }) => theme.spacing.sm}px;
+`;
+
+export const TreeRow = styled.Pressable`
+  flex-direction: row;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.xs}px;
+  padding: ${({ theme }) => theme.spacing.sm}px ${({ theme }) => theme.spacing.xs}px;
+  border-radius: ${({ theme }) => theme.radius.sm}px;
+  margin-bottom: 2px;
+`;
+
+export const TreeChevron = styled.Text`
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: 13;
+  width: 14px;
+  text-align: center;
+`;
+
+export const TreeName = styled.Text`
+  flex: 1;
+  color: ${({ theme }) => theme.colors.text};
+  font-size: ${({ theme }) => theme.typography.sizes.body}px;
+  font-weight: 600;
+`;
+
+export const TreeCount = styled.Text`
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: ${({ theme }) => theme.typography.sizes.caption}px;
+  min-width: 18px;
+  text-align: right;
+`;
+
+export const TreeNewChat = styled.Pressable`
+  padding: 2px 6px;
+  border-radius: ${({ theme }) => theme.radius.xs}px;
+`;
+
+export const TreeNewChatLabel = styled.Text`
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: 17;
+  font-weight: 600;
+`;
+
+export const Indented = styled.View`
+  padding-left: ${({ theme }) => theme.spacing.xl}px;
+`;
+
+export const IndentedDeep = styled.View`
+  padding-left: ${({ theme }) => theme.spacing.xxxl}px;
+`;
+
+export const NavRow = styled.Pressable`
+  flex-direction: row;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm}px;
+  padding: ${({ theme }) => theme.spacing.md}px ${({ theme }) => theme.spacing.xs}px;
+  border-radius: ${({ theme }) => theme.radius.sm}px;
+`;
+
+export const NavLabel = styled.Text`
+  flex: 1;
+  color: ${({ theme }) => theme.colors.text};
+  font-size: ${({ theme }) => theme.typography.sizes.body}px;
+  font-weight: 500;
+`;
+
+export const NavChevron = styled.Text`
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: 18;
+`;
+
+export const NavBadge = styled.Text`
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: ${({ theme }) => theme.typography.sizes.caption}px;
+  border-width: 1px;
+  border-color: ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.pill}px;
+  padding: 1px 8px;
+  overflow: hidden;
+`;
+
+// ---- Action sheets (rendered inside BottomSheet) ----
+
+export const SheetSection = styled.View`
+  padding: 20px;
+  gap: 10px;
+`;
+
+export const MoveRow = styled.Pressable`
+  flex-direction: row;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.md}px;
+  padding: ${({ theme }) => theme.spacing.md}px ${({ theme }) => theme.spacing.xs}px;
+  border-radius: ${({ theme }) => theme.radius.sm}px;
+`;
+
+export const MoveRowLabel = styled.Text`
+  flex: 1;
+  color: ${({ theme }) => theme.colors.text};
+  font-size: ${({ theme }) => theme.typography.sizes.body}px;
+  font-weight: 500;
+`;
+
+export const MoveRowMark = styled.Text`
+  color: ${({ theme }) => theme.colors.accent};
+  font-size: 11;
+`;
+
 export const ConversationItem = styled.Pressable`
   padding: ${({ theme }) => theme.spacing.md}px;
   border-radius: ${({ theme }) => theme.radius.sm}px;

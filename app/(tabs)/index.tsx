@@ -63,6 +63,8 @@ export default function HomeScreen() {
   // ChatGPT-style: the conversation takes over the home screen in place.
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingInitial, setPendingInitial] = useState<string | null>(null);
+  // Project/folder a new chat is born filed into (set from the sidebar "+").
+  const [pendingProjectId, setPendingProjectId] = useState<string | undefined>(undefined);
   // Bubble entrance stagger plays on a fresh entry (greet → chat or new chat),
   // but not when swapping between conversations in place — that must feel instant.
   const [animateEntry, setAnimateEntry] = useState(true);
@@ -91,20 +93,30 @@ export default function HomeScreen() {
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
-  const handleNewChat = useCallback(() => {
+  const handleNewChat = useCallback((projectId?: string) => {
     setSidebarOpen(false);
     setActiveId(null);
     setPendingInitial(null);
     setInput('');
     setAnimateEntry(true);
+    setPendingProjectId(projectId);
   }, []);
 
   const handleSelectConversation = useCallback((id: string) => {
     setSidebarOpen(false);
     setPendingInitial(null);
+    setPendingProjectId(undefined);
     setAnimateEntry(false);
     setActiveId(id);
   }, []);
+
+  /** Deleting the conversation currently open resets to the greet stage. */
+  const handleConversationDeleted = useCallback(
+    (id: string) => {
+      if (activeId === id) handleNewChat();
+    },
+    [activeId, handleNewChat],
+  );
 
   const handleOpenProfile = useCallback(() => {
     if (isGuest) {
@@ -165,6 +177,7 @@ export default function HomeScreen() {
         const conv = await createAuthed({
           provider: def.provider,
           model: def.model,
+          projectId: pendingProjectId,
         });
         id = conv.id;
       }
@@ -172,12 +185,13 @@ export default function HomeScreen() {
       setPendingInitial(content);
       setAnimateEntry(true);
       setActiveId(id);
+      setPendingProjectId(undefined);
     } catch (e) {
       toast.error('Não foi possível iniciar a conversa', String(e));
     } finally {
       setStarting(false);
     }
-  }, [input, starting, isGuest, selection, createGuest, createAuthed, getDefaultModel]);
+  }, [input, starting, isGuest, selection, pendingProjectId, createGuest, createAuthed, getDefaultModel]);
 
   const selectionLabel = selection
     ? `${PROVIDER_LABEL[selection.provider]} · ${selection.model}`
@@ -207,7 +221,7 @@ export default function HomeScreen() {
             <IconButton
               variant="ghost"
               icon={<Text style={{ color: colors.text, fontSize: 20 }}>✎</Text>}
-              onPress={handleNewChat}
+              onPress={() => handleNewChat()}
               accessibilityLabel="Nova conversa"
             />
           </TopBar>
@@ -306,6 +320,7 @@ export default function HomeScreen() {
         onNewChat={handleNewChat}
         onSelectConversation={handleSelectConversation}
         onOpenProfile={handleOpenProfile}
+        onConversationDeleted={handleConversationDeleted}
       />
 
       <BottomSheet visible={profileSheetOpen} onClose={() => setProfileSheetOpen(false)}>

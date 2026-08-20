@@ -45,6 +45,8 @@ export interface ConversationResponse {
   messageCount: number;
   fallbackProvider: string | null;
   fallbackModel: string | null;
+  /** Workspace project/folder the conversation is filed under; null = unfiled. */
+  projectId: string | null;
 }
 
 export interface MessageResponse {
@@ -174,6 +176,22 @@ export interface MemoryResponse {
 
 export interface ImportMemoryDto {
   content: string;
+}
+
+// ---- Projects (workspace) ----
+
+/**
+ * Workspace project: `parentId` null = root project, set = folder of a root
+ * (2 levels; folders never nest). `conversationCount` counts conversations
+ * filed directly in this project/folder (folders are not summed).
+ */
+export interface ProjectResponse {
+  id: string;
+  parentId: string | null;
+  name: string;
+  conversationCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** Minimal message shape sent to the anonymous chat endpoint (stateless). */

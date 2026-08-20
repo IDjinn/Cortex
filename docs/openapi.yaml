@@ -59,6 +59,7 @@ components:
         messageCount: { type: integer }
         fallbackProvider: { type: string, nullable: true }
         fallbackModel: { type: string, nullable: true }
+        projectId: { type: string, format: uuid, nullable: true, description: Projeto/pasta onde a conversa está arquivada (null = sem projeto). }
     ConversationDetail:
       allOf:
         - $ref: '#/components/schemas/Conversation'
@@ -120,6 +121,16 @@ components:
         conversationId: { type: string, format: uuid, nullable: true }
         source: { type: string, enum: [Manual, Extracted] }
         content: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Project:
+      type: object
+      description: Projeto do workspace (2 níveis — parentId nulo = raiz, preenchido = pasta de um projeto raiz).
+      properties:
+        id: { type: string, format: uuid }
+        parentId: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        conversationCount: { type: integer, description: Conversas arquivadas diretamente neste projeto/pasta (pastas não somadas). }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     Error:
@@ -286,6 +297,7 @@ paths:
                 title: { type: string }
                 provider: { $ref: '#/components/schemas/ProviderKind' }
                 model: { type: string }
+                projectId: { type: string, format: uuid, nullable: true, description: Projeto/pasta onde nasce arquivada (id inválido = sem projeto). }
       responses:
         '201':
           content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } }
@@ -362,6 +374,7 @@ paths:
                 model: { type: string }
                 fallbackProvider: { type: string, description: String vazio limpa a reserva. }
                 fallbackModel: { type: string, description: String vazio limpa a reserva. }
+                projectId: { type: string, description: String vazio desarquiva a conversa (volta para "Sem projeto"). }
       responses:
         '204': { description: Atualizada }
         '404': { description: Não encontrada }
@@ -370,6 +383,59 @@ paths:
         - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
       responses:
         '204': { description: Removida }
+
+  /api/projects:
+    get:
+      summary: Lista projetos e pastas (lista plana; o cliente monta a árvore de 2 níveis)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Project' } }
+    post:
+      summary: Cria um projeto (ou pasta, com parentId de um projeto raiz)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 100 }
+                parentId: { type: string, format: uuid, nullable: true, description: Projeto raiz que receberá a pasta. Pastas não aninham. }
+      responses:
+        '201':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Project' } } }
+        '400':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /api/projects/{id}:
+    patch:
+      summary: Renomeia um projeto/pasta
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 100 }
+      responses:
+        '204': { description: Renomeado }
+        '400':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '404': { description: Não encontrado }
+    delete:
+      summary: Remove um projeto/pasta — pastas caem junto e as conversas são desarquivadas (nunca apagadas)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Removido }
+        '404': { description: Não encontrado }
 
   /api/usage:
     get:

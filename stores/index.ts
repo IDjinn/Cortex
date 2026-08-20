@@ -11,6 +11,12 @@ export {
   type ConversationsState,
 } from './conversationsStore';
 export {
+  useProjectsStore,
+  buildProjectTree,
+  type ProjectsState,
+  type ProjectNode,
+} from './projectsStore';
+export {
   useGuestStore,
   guestSnapshot,
   selectGuestList,

@@ -67,6 +67,11 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="auth/callback" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="memories" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="skills" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="commands" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="mcps" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="plugins" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="tasks" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen
           name="conversation/[id]"
           options={{ headerShown: false, animation: 'slide_from_right' }}

@@ -10,6 +10,7 @@ import type {
   MemoryResponse,
   MemoryScope,
   ModelResponse,
+  ProjectResponse,
   ProviderKeyResponse,
   ProviderResponse,
   UsageResponse,
@@ -40,6 +41,8 @@ export interface CreateConversationInput {
   title?: string;
   provider: ChatProviderKind;
   model: string;
+  /** Project/folder the conversation is born filed into; an unknown id is ignored server-side. */
+  projectId?: string;
 }
 
 export function listConversations(): Promise<ConversationResponse[]> {
@@ -68,6 +71,8 @@ export function updateConversation(
     /** Empty string clears the fallback. */
     fallbackProvider?: string;
     fallbackModel?: string;
+    /** Empty string unfiles the conversation (back to "Sem projeto"). */
+    projectId?: string;
   },
 ): Promise<void> {
   return apiRequest<void>(`/api/conversations/${id}`, {
@@ -78,6 +83,32 @@ export function updateConversation(
 
 export function deleteConversation(id: string): Promise<void> {
   return apiRequest<void>(`/api/conversations/${id}`, { method: 'DELETE' });
+}
+
+// ---- Projects (workspace) ----
+
+export interface CreateProjectInput {
+  name: string;
+  /** Root project that will hold the folder; folders never nest. */
+  parentId?: string;
+}
+
+/** Flat list (roots + folders) — the client builds the 2-level tree. */
+export function listProjects(): Promise<ProjectResponse[]> {
+  return apiRequest<ProjectResponse[]>('/api/projects');
+}
+
+export function createProject(input: CreateProjectInput): Promise<ProjectResponse> {
+  return apiRequest<ProjectResponse>('/api/projects', { method: 'POST', body: input });
+}
+
+export function renameProject(id: string, name: string): Promise<void> {
+  return apiRequest<void>(`/api/projects/${id}`, { method: 'PATCH', body: { name } });
+}
+
+/** Deletes folders with a root project; conversations are unfiled, never deleted. */
+export function deleteProject(id: string): Promise<void> {
+  return apiRequest<void>(`/api/projects/${id}`, { method: 'DELETE' });
 }
 
 // ---- Guest → account migration ----

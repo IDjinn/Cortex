@@ -102,6 +102,16 @@ Shipped: model picker with search/context/price/capabilities (full OpenRouter ca
 - [x] CRUD UI plus automatic memory extraction (assistant proposes memories; user confirms) — extraction runs server-side post-turn on the conversation's model and arrives as an SSE `memoryProposal` event; guest mode has manual memories only (extraction client-side is future work)
 - [x] Prompt injection with a relevance budget (top-k memories per turn) — deterministic top-K/char budget today (newest first); semantic ranking lands with the embeddings epic
 
+> **Deferred:** project-scoped memories stay reserved (no `ProjectId` on `Memory` yet). Memory retrieval will likely be rethought once indexing lands — possibly with embeddings/graph-backed recall — so scoping decisions wait for that.
+
+**Epic: Projects & workspace (Agent IDE)** ✅ (shipped)
+
+- [x] `Project` entity (2 levels: project → folders, unlimited folders per project) with conversations filed into projects/folders via `projectId`; `GET/POST/PATCH/DELETE /api/projects`; deleting a project unfiles its conversations (never deletes them); authed-only (guests keep a flat list)
+- [x] Sidebar workspace: collapsible project tree with per-folder conversations, unfiled-chats section, and navigation to Memories / Skills / Commands / MCPs / Plugins / Tasks
+- [x] Conversation actions via long-press sheet: rename, pin/unpin, move to project/folder, delete (two-tap confirm)
+- [x] New chat born inside a project/folder from the sidebar
+- [x] Placeholder screens for Skills / Commands / MCPs / Plugins / Tasks ("Em breve", tied to their roadmap epics)
+
 **Epic: Skills manager**
 
 - [ ] Skills in the open agent-skills `SKILL.md` format (import/export compatibility)
@@ -132,6 +142,12 @@ Shipped: model picker with search/context/price/capabilities (full OpenRouter ca
 
 - [ ] Multi-step orchestration: plans, sub-tasks, pause/resume
 - [ ] Sandboxed tools: web search, fetch, code execution (desktop)
+- [ ] Tasks inbox: standalone chats and delegated sub-tasks surfaced in the workspace sidebar (separate from project conversations)
+
+**Epic: Commands & plugins**
+
+- [ ] Slash commands: reusable prompt templates (create / edit / share), invoked with `/` in the composer, scoped globally or per project
+- [ ] Plugin system on top of skills + MCP + tools: install, enable, per-project configuration
 
 **Epic: Helper mode**
 
