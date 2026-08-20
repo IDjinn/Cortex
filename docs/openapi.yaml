@@ -466,6 +466,7 @@ paths:
                   Eventos SSE (`event: <tipo>` + `data: <json>`):
                   - user { messageId } / assistant { messageId }
                   - token { value }
+                  - reasoning { value } (cadeia de raciocínio de modelos reasoning, exibida separada da resposta; persistida em messages.reasoning)
                   - toolCall { id, name, arguments } (contrato da Fase 4)
                   - notice { message } (ex.: fallback acionado)
                   - done { tokensIn, tokensOut, provider, model, costUsd }
@@ -501,7 +502,7 @@ paths:
                 baseUrl: { type: string, description: "Só provedores locais." }
       responses:
         '200':
-          description: text/event-stream (token / usage / done / error)
+          description: text/event-stream (token / reasoning / usage / done / error)
         '403':
           description: Provedor remoto sem chave
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }

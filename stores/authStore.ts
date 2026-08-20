@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
-import { importConversations } from '@/api';
+import { getProfile, importConversations } from '@/api';
 import { tokenStorage } from '@/api/client';
 import type { AuthResponse, ImportConversationDto, UserProfile } from '@/api/types';
 import { toast } from '@/components/feedback';
@@ -48,6 +48,11 @@ async function migrateGuestConversations(): Promise<void> {
 
 const GUEST_FLAG_KEY = 'cortex.guest.flag';
 
+// The OAuth deep link can be consumed by the auth-session promise (useOAuthLogin)
+// and the /auth/callback route at nearly the same time; whichever runs second
+// must not repeat the login (it would re-import the guest migration).
+let applyAuthInFlight: Promise<void> | null = null;
+
 interface AuthState {
   status: AuthStatus;
   user: UserProfile | null;
@@ -65,7 +70,7 @@ interface AuthState {
 
 export type { AuthState };
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   status: 'idle',
   user: null,
   hydrated: false,
@@ -81,6 +86,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (stored && stored.accessToken) {
         // Trust the token; the API layer will refresh or 401 if invalid.
         set({ status: 'authenticated', guestMode: false });
+        // Only tokens live on-device — the profile (name/avatar) is re-fetched
+        // so linked accounts keep their identity across restarts.
+        getProfile()
+          .then((user) => set({ user }))
+          .catch(() => {});
       } else {
         set({ status: 'unauthenticated', guestMode: guestFlag === '1' });
       }
@@ -92,10 +102,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   applyAuth: async (auth) => {
-    await tokenStorage.set(auth);
-    await AsyncStorage.setItem(GUEST_FLAG_KEY, '0');
-    set({ status: 'authenticated', user: auth.user, guestMode: false, error: null });
-    await migrateGuestConversations();
+    if (get().status === 'authenticated') return;
+    if (applyAuthInFlight) return applyAuthInFlight;
+    applyAuthInFlight = (async () => {
+      try {
+        await tokenStorage.set(auth);
+        await AsyncStorage.setItem(GUEST_FLAG_KEY, '0');
+        set({ status: 'authenticated', user: auth.user, guestMode: false, error: null });
+        await migrateGuestConversations();
+      } finally {
+        applyAuthInFlight = null;
+      }
+    })();
+    return applyAuthInFlight;
   },
 
   signOut: async () => {

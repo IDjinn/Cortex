@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -14,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar, IconButton } from '@/components/ui';
 import { MarkdownView } from '@/components/markdown';
 import { useChatSession } from '@/hooks/useChatSession';
-import { selectIsGuest, useAuthStore, useConversationsStore, useGuestStore, useMemoriesStore } from '@/stores';
+import { selectIsGuest, useAuthStore, useConversationsStore, useGuestStore, useMemoriesStore, useModelPrefsStore, useSettingsStore } from '@/stores';
 import type { ChatProviderKind } from '@/api/types';
 import { PROVIDER_LABEL } from '@/stores/providersStore';
 import { toast } from '@/components/feedback';
@@ -22,6 +24,8 @@ import { useTheme } from '@/theme';
 
 import { ModelPickerSheet } from './ModelPickerSheet';
 import { MemoryProposalSheet } from './MemoryProposalSheet';
+import { ReasoningBlock } from './ReasoningBlock';
+import { TypingDots } from './TypingDots';
 
 import { AssistantBubble, UserBubble } from './Bubble';
 import {
@@ -36,7 +40,6 @@ import {
   ComposerInput,
   ComposerInputWrap,
   ComposerRow,
-  TypingIndicator,
 } from '@/components/screens/conversation.styles';
 
 interface ConversationViewProps {
@@ -48,6 +51,8 @@ interface ConversationViewProps {
   onExit?: () => void;
   /** When provided, renders a menu (☰) button that opens the history sidebar. */
   onOpenSidebar?: () => void;
+  /** Play the bubble entrance stagger (disable when swapping between conversations). */
+  animateBubbles?: boolean;
 }
 
 /**
@@ -55,10 +60,11 @@ interface ConversationViewProps {
  * /conversation/[id] route and embedded in-place on the home screen, so a new
  * chat never leaves the screen it started on.
  */
-export function ConversationView({ id, initial, onExit, onOpenSidebar }: ConversationViewProps) {
+export function ConversationView({ id, initial, onExit, onOpenSidebar, animateBubbles = true }: ConversationViewProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const { colors, elevation } = useTheme();
   const isGuest = useAuthStore(selectIsGuest);
+  const showGenerationStats = useSettingsStore((s) => s.showGenerationStats);
 
   const {
     conversation,
@@ -78,9 +84,11 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
   const pendingInitialRef = useRef<string | null>(initial ?? null);
 
   // Switch the conversation's provider × model (persisted server-side or on-device).
+  // The choice also becomes the default for NEW conversations (ChatGPT-style).
   const handleSelectModel = useCallback(
     async (provider: ChatProviderKind, model: string) => {
       setPickerOpen(false);
+      useModelPrefsStore.getState().setPreferred({ provider, model });
       try {
         if (isGuest) {
           useGuestStore.getState().setModel(id, provider, model);
@@ -131,23 +139,48 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
     [messages],
   );
 
-  // Autoscroll on new content. Trigger is the message count.
-  const messageCount = messages.length;
-  const autoscroll = useCallback(() => {
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollToEnd({ animated: true });
-    });
+  // ---- Scroll: follow the stream, but yield to manual scrolling ----
+  // Follow mode stays on while the user is at (or near) the bottom; scrolling
+  // up pauses following and shows a jump-to-bottom button.
+  const followRef = useRef(true);
+  const firstLayoutRef = useRef(true);
+  const [showJump, setShowJump] = useState(false);
+
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    const nearBottom = distanceFromBottom < 80;
+    if (nearBottom !== followRef.current) {
+      followRef.current = nearBottom;
+      setShowJump(!nearBottom);
+    }
   }, []);
+
+  const jumpToBottom = useCallback(() => {
+    followRef.current = true;
+    setShowJump(false);
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, []);
+
+  // Follow every content change (the messages identity changes on each delta).
+  // Instant on the first layout and while streaming; animated otherwise.
   useEffect(() => {
-    void messageCount;
-    autoscroll();
-  }, [messageCount, autoscroll]);
+    if (!followRef.current) return;
+    const instant = firstLayoutRef.current || streaming;
+    firstLayoutRef.current = false;
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated: !instant });
+    });
+  }, [messages, streaming]);
 
   const handleSend = useCallback(async () => {
     const content = input.trim();
     if (!content || streaming) return;
     Keyboard.dismiss();
     setInput('');
+    // Sending always re-engages follow mode, even if the user was reading up.
+    followRef.current = true;
+    setShowJump(false);
     await send(content);
   }, [input, streaming, send]);
 
@@ -210,60 +243,106 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
         style={{ flex: 1 }}
         keyboardVerticalOffset={8}
       >
-        <ChatScroll ref={scrollRef} contentContainerStyle={{ flexGrow: 1 }}>
-          <ChatScrollContent>
-            {loading ? (
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
-                <ActivityIndicator color={colors.accent} />
-              </View>
-            ) : error ? (
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
-                <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>{error}</Text>
-              </View>
-            ) : messages.length === 0 ? (
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
-                <Avatar name="Cortex" size={56} />
-                <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 15 }}>
-                  Comece a conversar abaixo.
+        <View style={{ flex: 1 }}>
+          <ChatScroll
+            ref={scrollRef}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            contentContainerStyle={{ flexGrow: 1 }}
+          >
+            <ChatScrollContent>
+              {loading ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+                  <ActivityIndicator color={colors.accent} />
+                </View>
+              ) : error ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+                  <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>{error}</Text>
+                </View>
+              ) : messages.length === 0 ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+                  <Avatar name="Cortex" size={56} />
+                  <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 15 }}>
+                    Comece a conversar abaixo.
+                  </Text>
+                </View>
+              ) : (
+                messages.map((m, i) =>
+                  m.role === 'User' ? (
+                    <UserBubble key={m.id} staggerIndex={i} animateIn={animateBubbles && i < 6}>
+                      {m.content}
+                    </UserBubble>
+                  ) : (
+                    <AssistantBubble
+                      key={m.id}
+                      staggerIndex={i}
+                      animateIn={animateBubbles && i < 6}
+                      avatarName="Cortex"
+                      hug={streaming && i === messages.length - 1 && !m.content && !m.reasoning}
+                      header={
+                        m.reasoning ? (
+                          <ReasoningBlock
+                            text={m.reasoning}
+                            active={streaming && i === messages.length - 1 && !m.content}
+                          />
+                        ) : undefined
+                      }
+                      meta={(() => {
+                        const parts: string[] = [];
+                        if (m.tokensIn && m.tokensOut) parts.push(`${m.tokensIn}/${m.tokensOut} tokens`);
+                        if (m.costUsd != null) parts.push(`$${m.costUsd.toFixed(4)}`);
+                        if (showGenerationStats) {
+                          if (m.tokensPerSecond != null) {
+                            parts.push(
+                              `${m.tokensPerSecond.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} tok/s`,
+                            );
+                          }
+                          if (m.durationMs != null && m.durationMs > 0) {
+                            parts.push(
+                              `${(m.durationMs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s`,
+                            );
+                          }
+                        }
+                        return parts.length > 0 ? parts.join(' · ') : undefined;
+                      })()}
+                    >
+                      {m.content ? (
+                        <MarkdownView>{m.content}</MarkdownView>
+                      ) : streaming && i === messages.length - 1 ? (
+                        <TypingDots />
+                      ) : null}
+                    </AssistantBubble>
+                  ),
+                )
+              )}
+              {totalCost > 0 ? (
+                <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', paddingTop: 4 }}>
+                  Custo estimado da conversa: ${totalCost.toFixed(4)}
                 </Text>
-              </View>
-            ) : (
-              messages.map((m, i) =>
-                m.role === 'User' ? (
-                  <UserBubble key={m.id} staggerIndex={i} animateIn={i < 6}>
-                    {m.content}
-                  </UserBubble>
-                ) : (
-                  <AssistantBubble
-                    key={m.id}
-                    staggerIndex={i}
-                    animateIn={i < 6}
-                    avatarName="Cortex"
-                    meta={
-                      m.tokensIn && m.tokensOut
-                        ? `${m.tokensIn}/${m.tokensOut} tokens${
-                            m.costUsd != null ? ` · $${m.costUsd.toFixed(4)}` : ''
-                          }`
-                        : undefined
-                    }
-                  >
-                    {m.content || (streaming && i === messages.length - 1 ? '…' : '') ? (
-                      <MarkdownView>{m.content}</MarkdownView>
-                    ) : null}
-                  </AssistantBubble>
-                ),
-              )
-            )}
-            {streaming ? (
-              <TypingIndicator>Cortex está escrevendo…</TypingIndicator>
-            ) : null}
-            {totalCost > 0 ? (
-              <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', paddingTop: 4 }}>
-                Custo estimado da conversa: ${totalCost.toFixed(4)}
-              </Text>
-            ) : null}
-          </ChatScrollContent>
-        </ChatScroll>
+              ) : null}
+            </ChatScrollContent>
+          </ChatScroll>
+
+          {showJump ? (
+            <View
+              style={{
+                position: 'absolute',
+                right: 12,
+                bottom: 12,
+                borderRadius: 999,
+                ...elevation(2),
+              }}
+            >
+              <IconButton
+                variant="default"
+                round
+                icon={<Text style={{ color: colors.textSecondary, fontSize: 20, lineHeight: 22 }}>↓</Text>}
+                onPress={jumpToBottom}
+                accessibilityLabel="Ir para a mensagem mais recente"
+              />
+            </View>
+          ) : null}
+        </View>
 
         <ChatComposer style={{ paddingBottom: insets.bottom + 8 }}>
           <ComposerRow>
@@ -282,12 +361,8 @@ export function ConversationView({ id, initial, onExit, onOpenSidebar }: Convers
               />
             </ComposerInputWrap>
             <IconButton
-              variant={canSend ? 'accent' : 'default'}
-              icon={
-                <Text style={{ color: canSend ? colors.accentText : colors.textMuted, fontSize: 18 }}>
-                  ↑
-                </Text>
-              }
+              variant="accent"
+              icon={<Text style={{ color: colors.accentText, fontSize: 18 }}>↑</Text>}
               disabled={!canSend}
               onPress={handleSend}
               accessibilityLabel="Enviar"

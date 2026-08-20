@@ -167,6 +167,7 @@ export function ModelPickerSheet({
             keyExtractor={(row, i) => (row.type === 'header' ? `h-${row.provider}` : `m-${row.provider}-${row.model.id}-${i}`)}
             style={{ maxHeight: 420 }}
             nestedScrollEnabled
+            contentContainerStyle={{ gap: 6, paddingBottom: 8 }}
             renderItem={({ item }) =>
               item.type === 'header' ? (
                 <Text

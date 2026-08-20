@@ -6,6 +6,8 @@ export type BubbleSide = 'user' | 'assistant';
 
 interface BubbleProps {
   $side: BubbleSide;
+  /** Hug the content instead of the assistant's stable full width (typing dots). */
+  $hug?: boolean;
 }
 
 function align($side: BubbleSide) {
@@ -24,11 +26,16 @@ function radius($side: BubbleSide, theme: Theme) {
     : `${r}px ${r}px ${r}px ${theme.radius.xs}px`;
 }
 
+// Assistant bubbles stretch to a stable full width (like ChatGPT's answer
+// column): toggling the reasoning block must not resize the bubble, and code
+// blocks get the widest possible surface. `$hug` opts out for tiny content
+// (the "…" placeholder). User bubbles always hug their content.
 export const BubbleContainer = styled.View<BubbleProps>`
-  align-self: ${({ $side }) => align($side)};
-  max-width: 85%;
+  align-self: ${({ $side, $hug }) =>
+    $hug ? align($side) : $side === 'user' ? 'flex-end' : 'stretch'};
+  max-width: ${({ $side }) => ($side === 'user' ? '85%' : '100%')};
   background-color: ${({ $side, theme }) => bg($side, theme)};
-  border-radius: ${({ $side, theme }) => theme.radius.lg}px;
+  border-radius: ${({ $side, theme }) => radius($side, theme)};
   padding: ${({ theme }) => theme.spacing.md}px ${({ theme }) => theme.spacing.lg}px;
   border: 1px solid
     ${({ $side, theme }) => ($side === 'assistant' ? theme.colors.border : 'transparent')};
@@ -57,4 +64,36 @@ export const BubbleRow = styled.View<BubbleProps>`
   width: 100%;
   padding-horizontal: ${({ theme }) => theme.spacing.lg}px;
   margin-vertical: ${({ theme }) => theme.spacing.xs}px;
+`;
+
+// ---- Reasoning (model thinking) ----
+
+export const ReasoningWrap = styled.View`
+  margin-bottom: ${({ theme }) => theme.spacing.sm}px;
+  padding-bottom: ${({ theme }) => theme.spacing.xs}px;
+  border-bottom-width: 1px;
+  border-bottom-color: ${({ theme }) => theme.colors.border};
+`;
+
+export const ReasoningHeader = styled.View`
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+`;
+
+interface ReasoningHeaderTextProps {
+  $color: string;
+}
+
+export const ReasoningHeaderText = styled.Text<ReasoningHeaderTextProps>`
+  color: ${({ $color }) => $color};
+  font-size: ${({ theme }) => theme.typography.sizes.caption}px;
+  font-weight: 600;
+`;
+
+export const ReasoningBody = styled.Text`
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: ${({ theme }) => theme.typography.sizes.caption + 1}px;
+  line-height: 18px;
+  margin-top: 6px;
 `;

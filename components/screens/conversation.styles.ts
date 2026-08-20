@@ -77,10 +77,3 @@ export const ComposerInput = styled.TextInput`
   min-height: 24px;
   text-align-vertical: top;
 `;
-
-export const TypingIndicator = styled.Text`
-  color: ${({ theme }) => theme.colors.textMuted};
-  font-size: ${({ theme }) => theme.typography.sizes.caption}px;
-  text-align: center;
-  padding-vertical: ${({ theme }) => theme.spacing.xs}px;
-`;

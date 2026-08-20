@@ -1,8 +1,34 @@
 import React from 'react';
-import Markdown from 'react-native-markdown-display';
+import Markdown, { type ASTNode, type RenderRules } from 'react-native-markdown-display';
 
+import { CodeBlock } from '@/components/code';
 import { useTheme } from '@/theme';
 import type { Theme } from '@/theme/ThemeProvider';
+
+/** `sourceInfo` (the fence info string, e.g. "ts") isn't in the public ASTNode type. */
+function fenceLanguage(node: ASTNode): string | null {
+  const info = (node as ASTNode & { sourceInfo?: string }).sourceInfo;
+  if (!info) return null;
+  const first = info.trim().split(/\s+/)[0] ?? '';
+  // Strip meta like "ts:1" or "jsx title=…" — keep the language token.
+  const lang = first.split(':')[0].trim();
+  return lang || null;
+}
+
+// Code (fenced and indented) routes to the generic CodeBlock with syntax
+// highlight + copy. Everything else uses the built-in rules.
+const rules: RenderRules = {
+  fence: (node) => (
+    <CodeBlock
+      key={node.key}
+      code={node.content.replace(/\n$/, '')}
+      language={fenceLanguage(node)}
+    />
+  ),
+  code_block: (node) => (
+    <CodeBlock key={node.key} code={node.content.replace(/\n$/, '')} />
+  ),
+};
 
 /**
  * Markdown renderer styled against the Cortex theme.
@@ -10,7 +36,11 @@ import type { Theme } from '@/theme/ThemeProvider';
  */
 export function MarkdownView({ children }: { children: string }) {
   const theme = useTheme();
-  return <Markdown style={makeStyles(theme)}>{children}</Markdown>;
+  return (
+    <Markdown rules={rules} style={makeStyles(theme)}>
+      {children}
+    </Markdown>
+  );
 }
 
 function makeStyles(theme: Theme) {
@@ -50,24 +80,6 @@ function makeStyles(theme: Theme) {
       paddingHorizontal: 4,
       paddingVertical: 1,
       borderRadius: 4,
-    },
-    code_block: {
-      color: theme.colors.text,
-      backgroundColor: theme.colors.surfaceOverlay,
-      fontFamily: theme.typography.fontFamilyMono,
-      fontSize: theme.typography.sizes.caption,
-      padding: 10,
-      borderRadius: 8,
-      marginVertical: 6,
-    },
-    fence: {
-      color: theme.colors.text,
-      backgroundColor: theme.colors.surfaceOverlay,
-      fontFamily: theme.typography.fontFamilyMono,
-      fontSize: theme.typography.sizes.caption,
-      padding: 10,
-      borderRadius: 8,
-      marginVertical: 6,
     },
     blockquote: {
       backgroundColor: theme.colors.surfaceOverlay,

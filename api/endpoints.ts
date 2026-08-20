@@ -46,8 +46,9 @@ export function listConversations(): Promise<ConversationResponse[]> {
   return apiRequest<ConversationResponse[]>('/api/conversations');
 }
 
-export function createConversation(input: CreateConversationInput): Promise<ConversationDetailResponse> {
-  return apiRequest<ConversationDetailResponse>('/api/conversations', {
+/** Returns the list-item shape (messageCount, no messages) — mirrors POST /api/conversations. */
+export function createConversation(input: CreateConversationInput): Promise<ConversationResponse> {
+  return apiRequest<ConversationResponse>('/api/conversations', {
     method: 'POST',
     body: input,
   });

@@ -28,6 +28,11 @@ export {
 } from './providersStore';
 export { useLocalEndpointStore, localEndpoint } from './localEndpointStore';
 export {
+  useSettingsStore,
+  RESPONSE_LANGUAGES,
+  type ResponseLanguage,
+} from './settingsStore';
+export {
   useMemoriesStore,
   relevantMemories,
   type MemoriesState,

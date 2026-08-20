@@ -33,6 +33,12 @@ export interface GuestMessage {
   error: string | null;
   createdAt: string;
   costUsd: number | null;
+  /** Chain-of-thought from reasoning models (kept on-device for guests). */
+  reasoning: string | null;
+  /** Client-computed generation speed (tokens/s). */
+  tokensPerSecond?: number | null;
+  /** Client-computed wall time of the streamed turn in ms. */
+  durationMs?: number | null;
 }
 
 export interface GuestMemory {

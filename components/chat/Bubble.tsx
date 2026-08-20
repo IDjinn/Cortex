@@ -22,10 +22,14 @@ export interface BubbleProps {
   avatarName?: string | null;
   showAvatar?: boolean;
   meta?: string;
+  /** Optional block rendered above the content inside the bubble (e.g. reasoning). */
+  header?: React.ReactNode;
   /** Index used to compute the stagger delay (entry animation only). */
   staggerIndex?: number;
   /** Skip the entrance animation entirely (e.g. when restoring state). */
   animateIn?: boolean;
+  /** Hug the content instead of the assistant's stable full width (typing dots). */
+  hug?: boolean;
 }
 
 const STAGGER_STEP = 45; // ms between items (Emil: 30-80ms band)
@@ -38,8 +42,10 @@ export function Bubble({
   avatarName,
   showAvatar = true,
   meta,
+  header,
   staggerIndex = 0,
   animateIn = true,
+  hug = false,
 }: BubbleProps) {
   const progress = useSharedValue(animateIn ? 0 : 1);
 
@@ -78,9 +84,13 @@ export function Bubble({
   return (
     <BubbleRow $side={side}>
       {side === 'assistant' ? avatar : null}
-      <View style={{ flexShrink: 1 }}>
+      {/* flex:1 gives the wrapper a definite width so `max-width: 85%` on the
+          container resolves — against an auto-width parent Yoga breaks text
+          one character per line. */}
+      <View style={{ flex: 1 }}>
         <Animated.View style={animatedStyle}>
-          <BubbleContainer $side={side}>
+          <BubbleContainer $side={side} $hug={hug}>
+            {header}
             {typeof children === 'string' ? (
               <BubbleText $side={side}>{children}</BubbleText>
             ) : (

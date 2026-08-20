@@ -68,7 +68,9 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
 
   create: async (input) => {
     const created = await apiCreate(input);
-    const listItem: ConversationResponse = {
+    // The create endpoint returns the list-item shape (no messages); seed the
+    // detail locally with an empty history so streaming appends work at once.
+    const detail: ConversationDetailResponse = {
       id: created.id,
       title: created.title,
       provider: created.provider,
@@ -76,15 +78,15 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       pinned: created.pinned,
       createdAt: created.createdAt,
       updatedAt: created.updatedAt,
-      messageCount: created.messages.length,
       fallbackProvider: created.fallbackProvider,
       fallbackModel: created.fallbackModel,
+      messages: [],
     };
     set((state) => ({
-      list: [listItem, ...state.list],
-      byId: { ...state.byId, [created.id]: created },
+      list: [created, ...state.list],
+      byId: { ...state.byId, [created.id]: detail },
     }));
-    return created;
+    return detail;
   },
 
   rename: async (id, title) => {

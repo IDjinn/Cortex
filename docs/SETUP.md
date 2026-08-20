@@ -63,7 +63,7 @@ bunx expo start
 | Var | Descrição | Default |
 | --- | --- | --- |
 | `EXPO_PUBLIC_API_BASE_URL` | URL do backend (use IP da LAN p/ device físico) | `http://localhost:5172` |
-| `EXPO_PUBLIC_OAUTH_REDIRECT` | Scheme de retorno do OAuth | `cortex://auth/callback` |
+| `EXPO_PUBLIC_OAUTH_REDIRECT` | Scheme de retorno do OAuth (só se aplica em builds nativas; no Expo Go e no web o redirect é derivado em runtime) | `cortex://auth/callback` |
 
 ## Verificação rápida
 
@@ -83,6 +83,14 @@ O `ThemeProvider` do `styled-components/native` precisa estar no topo. Verifique
 
 **`Unauthorized` em todas as rotas**
 JWT expirado ou não configurado. Faça logout/login; se persistir, limpe SecureStore com `expo-secure-store` no Dev Tools.
+
+**Login OAuth (GitHub/Google) trava numa tela branca no IP do backend**
+O backend concluiu o OAuth e redirecionou para `cortex://auth/callback`, mas no
+Expo Go esse scheme não existe no dispositivo (só `exp://`). O app deriva o
+redirect em runtime (`Linking.createURL`) justamente por isso — confira que você
+abriu o app pelo MESMO dev server do QR code e que `config.oauthRedirect` resolve
+para `exp://<seu-ip>:8081/--/auth/callback`. Em builds nativas (dev build/EAS) o
+scheme `cortex` é registrado e o `EXPO_PUBLIC_OAUTH_REDIRECT` do `.env` vale.
 
 **Backend não alcançável do celular**
 - Backend precisa escutar em `0.0.0.0` (não só `localhost`)

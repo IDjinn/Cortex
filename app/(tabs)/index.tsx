@@ -63,6 +63,9 @@ export default function HomeScreen() {
   // ChatGPT-style: the conversation takes over the home screen in place.
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingInitial, setPendingInitial] = useState<string | null>(null);
+  // Bubble entrance stagger plays on a fresh entry (greet → chat or new chat),
+  // but not when swapping between conversations in place — that must feel instant.
+  const [animateEntry, setAnimateEntry] = useState(true);
 
   // Model selector (chip + sheet) for new conversations.
   const [selection, setSelection] = useState<DefaultModel>(null);
@@ -93,11 +96,13 @@ export default function HomeScreen() {
     setActiveId(null);
     setPendingInitial(null);
     setInput('');
+    setAnimateEntry(true);
   }, []);
 
   const handleSelectConversation = useCallback((id: string) => {
     setSidebarOpen(false);
     setPendingInitial(null);
+    setAnimateEntry(false);
     setActiveId(id);
   }, []);
 
@@ -165,6 +170,7 @@ export default function HomeScreen() {
       }
       setInput('');
       setPendingInitial(content);
+      setAnimateEntry(true);
       setActiveId(id);
     } catch (e) {
       toast.error('Não foi possível iniciar a conversa', String(e));
@@ -184,6 +190,7 @@ export default function HomeScreen() {
           key={activeId}
           id={activeId}
           initial={pendingInitial}
+          animateBubbles={animateEntry}
           onExit={handleNewChat}
           onOpenSidebar={openSidebar}
         />
@@ -281,12 +288,8 @@ export default function HomeScreen() {
                   />
                 </ComposerInputWrap>
                 <IconButton
-                  variant={canSend ? 'accent' : 'default'}
-                  icon={
-                    <Text style={{ color: canSend ? colors.accentText : colors.textMuted, fontSize: 18 }}>
-                      ↑
-                    </Text>
-                  }
+                  variant="accent"
+                  icon={<Text style={{ color: colors.accentText, fontSize: 18 }}>↑</Text>}
                   disabled={!canSend}
                   onPress={handleSend}
                   accessibilityLabel="Enviar"

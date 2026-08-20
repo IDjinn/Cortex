@@ -74,6 +74,26 @@ Shipped: model picker with search/context/price/capabilities (full OpenRouter ca
 - [x] Guest mode beyond Ollama: any local endpoint (LM Studio, llama.cpp) and user-supplied remote keys
 - [x] Guest → account migration on login (use the prepared `guestSnapshot()`)
 
+**Epic: Reasoning transparency**
+
+- [x] Chain-of-thought streaming: every connector normalizes reasoning deltas (OpenRouter/xAI `reasoning`, DeepSeek/llama.cpp `reasoning_content`, Anthropic `thinking_delta`, Gemini thought parts, Ollama `thinking`) into a `reasoning` SSE event
+- [x] Reasoning persisted per message (accounts) / on-device (guests) and shown in a collapsible block in the bubble — live while the model thinks ("Pensando…"), collapsed once the answer starts
+
+**Epic: Chat UX polish**
+
+- [x] Animated "…" typing dots while the model generates
+- [x] Per-message generation stats (tok/s + duration), opt-in via Ajustes → Conversa
+- [x] Default response language setting (Ajustes → Conversa; "auto" follows the device locale)
+- [x] Frictionless conversation switching: in-place swap without entry stagger or loading flash; switching a conversation's model also becomes the default for new chats
+- [x] Bottom sheets paint behind the Android navigation bar (translucent modal window)
+- [x] Code blocks with syntax highlight and a copy button — generic `CodeBlock` component (dependency-free scanner), wired into the markdown renderer
+- [x] Stable bubble layout: assistant bubbles hold a fixed width (opening the reasoning block no longer resizes them) and user text no longer wraps one character per line
+- [x] Stream-following scroll: the list follows new tokens while at the bottom, pauses when the user scrolls up and offers a jump-to-bottom button
+- [x] Compact "…" typing bubble (hugs the dots instead of the full answer width)
+- [x] Auto-title: the first message replaces "Nova conversa" with a derived title (client-side; LLM-generated titles are future work)
+- [x] Account section in Ajustes: profile name/avatar rehydrated from `/api/me`, guest "Vincular conta" (Google/GitHub OAuth) and sign out
+- [x] Usage & stats: 6-month token chart + per-provider split (authed, from `/api/usage`), local stats card (conversations, messages, memories, tokens) for guests
+
 ## Phase 3 — Context engine (in progress)
 
 **Epic: Memories** ✅ (shipped)

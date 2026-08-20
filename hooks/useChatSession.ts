@@ -1,13 +1,18 @@
 import { startAnonymousStream, startChatStream, type StreamHandle } from '@/api/sse';
 import { toast } from '@/components/feedback';
-import { deviceKeyFor, useAuthStore, useConversationsStore, useGuestStore } from '@/stores';
+import { deviceKeyFor, useAuthStore, useConversationsStore, useGuestStore, useSettingsStore, type ResponseLanguage } from '@/stores';
+import { DEFAULT_CONVERSATION_TITLE, deriveConversationTitle } from '@/lib/title';
 import { localEndpoint } from '@/stores/localEndpointStore';
 import type { AnonymousChatMessage, ChatProviderKind, ChatTurnEvent, MessageResponse } from '@/api/types';
 import * as Localization from 'expo-localization';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-/** Device locale (e.g. "pt-BR") sent so the server can hint the response language. */
-function deviceLocale(): string | undefined {
+/**
+ * Locale sent so the server can hint the response language. "auto" follows the
+ * device locale; anything else is the user's chosen default language.
+ */
+function resolveLocale(pref: ResponseLanguage): string | undefined {
+  if (pref !== 'auto') return pref;
   return Localization.getLocales()[0]?.languageTag ?? undefined;
 }
 
@@ -46,6 +51,7 @@ function uid(prefix: string): string {
  */
 export function useChatSession(id: string): UseChatSessionResult {
   const isGuest = useAuthStore((s) => s.guestMode && s.status !== 'authenticated');
+  const responseLanguage = useSettingsStore((s) => s.responseLanguage);
 
   // Authed store bindings
   const authedById = useConversationsStore((s) => s.byId);
@@ -59,7 +65,11 @@ export function useChatSession(id: string): UseChatSessionResult {
   const guestAppend = useGuestStore((s) => s.appendMessage);
   const guestUpdateLast = useGuestStore((s) => s.updateLastMessage);
 
-  const [loading, setLoading] = useState(!isGuest);
+  // Only show the initial spinner when there is nothing cached — switching
+  // between conversations must feel instant (stale content renders at once).
+  const [loading, setLoading] = useState<boolean>(
+    !isGuest && !useConversationsStore.getState().byId[id],
+  );
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [memoryProposals, setMemoryProposals] = useState<string[] | null>(null);
@@ -72,7 +82,7 @@ export function useChatSession(id: string): UseChatSessionResult {
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    if (!useConversationsStore.getState().byId[id]) setLoading(true);
     authedFetchOne(id)
       .catch((e) => {
         if (!cancelled) setError(String(e));
@@ -145,6 +155,25 @@ export function useChatSession(id: string): UseChatSessionResult {
       const content = rawContent.trim();
       if (!content || streaming || !conversation) return;
 
+      // Read from the stores (not the render snapshot) so this is true only
+      // for the very first message of the conversation.
+      const isFirstTurn = isGuest
+        ? useGuestStore.getState().messages(id).length === 0
+        : (useConversationsStore.getState().byId[id]?.messages.length ?? 0) === 0;
+      const hasDefaultTitle = isGuest
+        ? (useGuestStore.getState().getConversation(id)?.title ?? DEFAULT_CONVERSATION_TITLE) ===
+          DEFAULT_CONVERSATION_TITLE
+        : (useConversationsStore.getState().byId[id]?.title ?? DEFAULT_CONVERSATION_TITLE) ===
+          DEFAULT_CONVERSATION_TITLE;
+      if (isFirstTurn && hasDefaultTitle) {
+        const title = deriveConversationTitle(content);
+        if (isGuest) {
+          useGuestStore.getState().rename(id, title);
+        } else {
+          useConversationsStore.getState().rename(id, title).catch(() => {});
+        }
+      }
+
       const now = new Date().toISOString();
       const userMsg: MessageResponse = {
         id: uid('local'),
@@ -156,6 +185,7 @@ export function useChatSession(id: string): UseChatSessionResult {
         error: null,
         createdAt: now,
         costUsd: null,
+        reasoning: null,
       };
       const assistantPlaceholder: MessageResponse = {
         id: uid('pending'),
@@ -167,26 +197,47 @@ export function useChatSession(id: string): UseChatSessionResult {
         error: null,
         createdAt: now,
         costUsd: null,
+        reasoning: null,
       };
 
       appendMessage(userMsg);
       appendMessage(assistantPlaceholder);
 
       let usage = { tokensIn: null as number | null, tokensOut: null as number | null };
+      let reasoningBuf = '';
+      let firstDeltaAt = 0;
+      let lastDeltaAt = 0;
 
       const handleEvent = (evt: ChatTurnEvent) => {
         if (evt.type === 'token') {
+          const t = Date.now();
+          if (!firstDeltaAt) firstDeltaAt = t;
+          lastDeltaAt = t;
           updateLast(evt.text);
+        } else if (evt.type === 'reasoning') {
+          const t = Date.now();
+          if (!firstDeltaAt) firstDeltaAt = t;
+          lastDeltaAt = t;
+          reasoningBuf += evt.text;
+          updateLast('', { reasoning: reasoningBuf });
         } else if (evt.type === 'usage') {
           usage = { tokensIn: evt.tokensIn, tokensOut: evt.tokensOut };
         } else if (evt.type === 'notice') {
           toast.show(evt.message);
         } else if (evt.type === 'completed') {
+          // Generation speed: output tokens over the streaming window (first
+          // delta → last delta), so queue/TTFT latency doesn't skew the rate.
+          const tokensOut = evt.tokensOut ?? usage.tokensOut;
+          const genSecs = firstDeltaAt ? (lastDeltaAt - firstDeltaAt) / 1000 : 0;
+          const tokensPerSecond =
+            tokensOut && genSecs > 0.2 ? Math.round((tokensOut / genSecs) * 10) / 10 : null;
           updateLast('', {
             tokensIn: evt.tokensIn ?? usage.tokensIn,
-            tokensOut: evt.tokensOut ?? usage.tokensOut,
+            tokensOut: tokensOut,
             model: evt.model ?? conversation.model,
             costUsd: evt.costUsd ?? null,
+            tokensPerSecond,
+            durationMs: firstDeltaAt ? Date.now() - firstDeltaAt : null,
           });
         } else if (evt.type === 'failed') {
           toast.error('Falha no streaming', evt.reason);
@@ -235,7 +286,7 @@ export function useChatSession(id: string): UseChatSessionResult {
           provider: conversation.provider,
           model: conversation.model,
           messages: history,
-          locale: deviceLocale(),
+          locale: resolveLocale(responseLanguage),
           providerKey,
           ...(isLocal ? { baseUrl: localEndpoint() } : {}),
           onEvent: handleEvent,
@@ -245,7 +296,7 @@ export function useChatSession(id: string): UseChatSessionResult {
         handle = startChatStream({
           conversationId: id,
           content,
-          locale: deviceLocale(),
+          locale: resolveLocale(responseLanguage),
           providerKey,
           onEvent: handleEvent,
           onError,
@@ -260,7 +311,7 @@ export function useChatSession(id: string): UseChatSessionResult {
         streamRef.current = null;
       }
     },
-    [appendMessage, conversation, id, isGuest, streaming, updateLast],
+    [appendMessage, conversation, id, isGuest, responseLanguage, streaming, updateLast],
   );
 
   const cancel = useCallback(() => {

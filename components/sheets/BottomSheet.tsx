@@ -149,7 +149,16 @@ export function BottomSheet({
   const sheetStyle: ViewStyle = { opacity: visible ? 1 : 0 };
 
   return (
-    <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={onClose}
+      // Android: extend the modal window behind the status/nav bars so the
+      // sheet surface (paddingBottom = insets.bottom) paints behind them.
+      statusBarTranslucent
+      navigationBarTranslucent
+    >
       <GestureHandlerRootView style={{ flex: 1 }}>
         <Backdrop $opacity={1} pointerEvents="auto" style={{ opacity: 0 }}>
           <Animated.View

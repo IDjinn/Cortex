@@ -58,6 +58,12 @@ export interface MessageResponse {
   createdAt: string;
   /** USD cost of the turn; null for local/free models. */
   costUsd: number | null;
+  /** Chain-of-thought produced by reasoning models; null for plain answers. */
+  reasoning: string | null;
+  /** Client-computed generation speed (tokens/s); not persisted server-side. */
+  tokensPerSecond?: number | null;
+  /** Client-computed wall time of the streamed turn in ms. */
+  durationMs?: number | null;
 }
 
 export interface ConversationDetailResponse extends Omit<ConversationResponse, 'messageCount'> {
@@ -105,6 +111,7 @@ export interface ApiError {
 
 export type ChatTurnEvent =
   | { type: 'token'; text: string }
+  | { type: 'reasoning'; text: string }
   | { type: 'toolCall'; id: string; name: string; arguments: string }
   | { type: 'notice'; message: string }
   | { type: 'usage'; tokensIn: number; tokensOut: number }

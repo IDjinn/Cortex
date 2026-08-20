@@ -52,6 +52,10 @@ function toChatTurnEvent(eventType: string | undefined, data: unknown): ChatTurn
       const text = (data as { value?: string } | null)?.value ?? '';
       return { type: 'token', text };
     }
+    case 'reasoning': {
+      const text = (data as { value?: string } | null)?.value ?? '';
+      return { type: 'reasoning', text };
+    }
     case 'toolCall': {
       const d = data as { id?: string; name?: string; arguments?: string } | null;
       return { type: 'toolCall', id: d?.id ?? '', name: d?.name ?? '', arguments: d?.arguments ?? '' };
