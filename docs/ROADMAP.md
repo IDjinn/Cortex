@@ -98,11 +98,12 @@ Shipped: model picker with search/context/price/capabilities (full OpenRouter ca
 
 **Epic: Memories** ✅ (shipped)
 
-- [x] Data model with scopes: global / project / conversation — `Project` scope is reserved in the enum until the Project entity exists; UI exposes Global + Conversation
+- [x] Data model with scopes: global / project / conversation — UI exposes all three; project memories attach to a project or folder via `projectId` and cascade when the project is deleted
 - [x] CRUD UI plus automatic memory extraction (assistant proposes memories; user confirms) — extraction runs server-side post-turn on the conversation's model and arrives as an SSE `memoryProposal` event; guest mode has manual memories only (extraction client-side is future work)
-- [x] Prompt injection with a relevance budget (top-k memories per turn) — deterministic top-K/char budget today (newest first); semantic ranking lands with the embeddings epic
+- [x] Prompt injection with a relevance budget (top-k memories per turn) — deterministic top-K/char budget today (newest first); a conversation injects global + its own + its project chain (folder and root project) memories; semantic ranking lands with the embeddings epic
+- [x] Bulk management: long-press multi-select with bulk delete (`POST /api/memories/bulk-delete`) and per-section two-tap clear (`POST /api/memories/clear`)
 
-> **Deferred:** project-scoped memories stay reserved (no `ProjectId` on `Memory` yet). Memory retrieval will likely be rethought once indexing lands — possibly with embeddings/graph-backed recall — so scoping decisions wait for that.
+> **Deferred:** memory retrieval will likely be rethought once indexing lands — possibly with embeddings/graph-backed recall — so ranking decisions wait for that (scoping is already live).
 
 **Epic: Projects & workspace (Agent IDE)** ✅ (shipped)
 

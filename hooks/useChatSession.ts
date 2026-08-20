@@ -2,7 +2,7 @@ import { startAnonymousStream, startChatStream, type StreamHandle } from '@/api/
 import { toast } from '@/components/feedback';
 import { deviceKeyFor, useAuthStore, useConversationsStore, useGuestStore, useSettingsStore, type ResponseLanguage } from '@/stores';
 import { DEFAULT_CONVERSATION_TITLE, deriveConversationTitle } from '@/lib/title';
-import { localEndpoint } from '@/stores/localEndpointStore';
+import { localEndpoint, type LocalProviderKind } from '@/stores/localEndpointStore';
 import type { AnonymousChatMessage, ChatProviderKind, ChatTurnEvent, MessageResponse } from '@/api/types';
 import * as Localization from 'expo-localization';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -288,7 +288,9 @@ export function useChatSession(id: string): UseChatSessionResult {
           messages: history,
           locale: resolveLocale(responseLanguage),
           providerKey,
-          ...(isLocal ? { baseUrl: localEndpoint() } : {}),
+          ...(isLocal
+            ? { baseUrl: localEndpoint(conversation.provider as LocalProviderKind) }
+            : {}),
           onEvent: handleEvent,
           onError,
         });

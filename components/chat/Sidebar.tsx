@@ -164,6 +164,10 @@ export function Sidebar({
   const pan = useMemo(
     () =>
       Gesture.Pan()
+        // Directional activation: vertical drags belong to the list ScrollView,
+        // only horizontal movement drags the drawer.
+        .activeOffsetX([-15, 15])
+        .failOffsetY([-15, 15])
         .onStart(() => {
           'worklet';
           cancelAnimation(translateX);

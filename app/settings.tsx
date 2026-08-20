@@ -1,12 +1,11 @@
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar, Button, Card, Divider, IconButton } from '@/components/ui';
 import { ProviderKeysCard } from '@/components/settings/ProviderKeysCard';
 import { UsageCard } from '@/components/settings/UsageCard';
-import { LocalEndpointCard } from '@/components/settings/LocalEndpointCard';
 import { MemoriesCard } from '@/components/settings/MemoriesCard';
 import { toast } from '@/components/feedback';
 import { useOAuthLogin, type OAuthProvider } from '@/hooks/useOAuthLogin';
@@ -14,9 +13,6 @@ import {
   RESPONSE_LANGUAGES,
   selectIsGuest,
   useAuthStore,
-  useConversationsStore,
-  useGuestStore,
-  useMemoriesStore,
   useSettingsStore,
 } from '@/stores';
 import { useTheme, useThemeControls } from '@/theme';
@@ -31,35 +27,6 @@ export default function SettingsScreen() {
   const signOut = useAuthStore((s) => s.signOut);
   const enterGuestMode = useAuthStore((s) => s.enterGuestMode);
   const { login: oauthLogin, pending: oauthPending } = useOAuthLogin();
-
-  const authedCount = useConversationsStore((s) => s.list.length);
-  const guestCount = useGuestStore((s) => s.conversations.length);
-  const conversationCount = isGuest ? guestCount : authedCount;
-
-  const authedMessageCount = useConversationsStore((s) =>
-    s.list.reduce((acc, c) => acc + c.messageCount, 0),
-  );
-  const guestMessageCount = useGuestStore((s) =>
-    Object.values(s.messagesByConv).reduce((acc, msgs) => acc + msgs.length, 0),
-  );
-  const guestTokens = useGuestStore((s) =>
-    Object.values(s.messagesByConv).reduce(
-      (acc, msgs) => acc + msgs.reduce((a, m) => a + (m.tokensIn ?? 0) + (m.tokensOut ?? 0), 0),
-      0,
-    ),
-  );
-  const authedMemories = useMemoriesStore((s) => s.list.length);
-  const guestMemories = useGuestStore((s) => s.memories.length);
-  const fetchMemories = useMemoriesStore((s) => s.fetchAll);
-
-  const messageCount = isGuest ? guestMessageCount : authedMessageCount;
-  const memoryCount = isGuest ? guestMemories : authedMemories;
-
-  // Authed memory count is a server list — pull it once for the stats card
-  // (MemoriesCard below shares the same store).
-  useEffect(() => {
-    if (!isGuest) fetchMemories().catch(() => {});
-  }, [isGuest, fetchMemories]);
 
   const responseLanguage = useSettingsStore((s) => s.responseLanguage);
   const setResponseLanguage = useSettingsStore((s) => s.setResponseLanguage);
@@ -114,6 +81,11 @@ export default function SettingsScreen() {
                 {isGuest ? 'Sem conta conectada' : user?.email}
               </Text>
             </View>
+            {isGuest ? null : (
+              <Button size="sm" variant="ghost" onPress={handleSignOut}>
+                Sair
+              </Button>
+            )}
           </View>
         </Card>
 
@@ -142,34 +114,6 @@ export default function SettingsScreen() {
             />
           </Card>
         ) : null}
-
-        <Card $elevation={0} $padding="lg">
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600', marginBottom: 10 }}>
-            Estatísticas
-          </Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
-            <Text style={{ color: colors.textSecondary }}>Conversas</Text>
-            <Text style={{ color: colors.text }}>{conversationCount}</Text>
-          </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
-            <Text style={{ color: colors.textSecondary }}>Mensagens</Text>
-            <Text style={{ color: colors.text }}>
-              {messageCount.toLocaleString('pt-BR')}
-            </Text>
-          </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
-            <Text style={{ color: colors.textSecondary }}>Memórias</Text>
-            <Text style={{ color: colors.text }}>{memoryCount}</Text>
-          </View>
-          {isGuest ? (
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
-              <Text style={{ color: colors.textSecondary }}>Tokens processados</Text>
-              <Text style={{ color: colors.text }}>
-                {guestTokens.toLocaleString('pt-BR')}
-              </Text>
-            </View>
-          ) : null}
-        </Card>
 
         <Card $elevation={0} $padding="lg">
           <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600', marginBottom: 10 }}>
@@ -235,11 +179,9 @@ export default function SettingsScreen() {
 
         <ProviderKeysCard />
 
-        <LocalEndpointCard />
-
         <MemoriesCard />
 
-        {isGuest ? null : <UsageCard />}
+        <UsageCard />
 
         <Card $elevation={0} $padding="lg">
           <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600', marginBottom: 10 }}>
@@ -249,15 +191,6 @@ export default function SettingsScreen() {
             Cortex — seu copiloto para código, ideias e todo o resto. Versão 1.0.0.
           </Text>
         </Card>
-
-        {isGuest ? null : (
-          <>
-            <Divider />
-            <Button variant="danger" fullWidth size="lg" onPress={handleSignOut}>
-              Sair da conta
-            </Button>
-          </>
-        )}
       </ScrollView>
     </View>
   );

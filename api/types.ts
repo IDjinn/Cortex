@@ -168,6 +168,8 @@ export interface MemoryResponse {
   id: string;
   scope: MemoryScope;
   conversationId: string | null;
+  /** Set when scope = 'Project' (project or folder). */
+  projectId: string | null;
   source: MemorySource;
   content: string;
   createdAt: string;
@@ -176,6 +178,10 @@ export interface MemoryResponse {
 
 export interface ImportMemoryDto {
   content: string;
+}
+
+export interface BulkMemoryResultResponse {
+  deleted: number;
 }
 
 // ---- Projects (workspace) ----

@@ -43,4 +43,5 @@ export {
   relevantMemories,
   type MemoriesState,
   type CreateMemoryInput,
+  type ClearMemoryFilter,
 } from './memoriesStore';

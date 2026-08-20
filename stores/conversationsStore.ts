@@ -161,6 +161,8 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       const conv = state.byId[id];
       if (!conv) return state;
       return {
+        // Sidebar badge stays fresh without a refetch.
+        list: state.list.map((c) => (c.id === id ? { ...c, messageCount: c.messageCount + 1 } : c)),
         byId: {
           ...state.byId,
           [id]: { ...conv, messages: [...conv.messages, msg] },

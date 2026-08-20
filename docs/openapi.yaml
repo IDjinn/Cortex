@@ -1,7 +1,7 @@
-openapi: 3.0.4
+openapi: 3.1.1
 info:
   title: Cortex API
-  version: "2.0.0"
+  version: "2.1.0"
   description: |
     Backend HTTP+SSE para o Cortex, o ambiente de IA multi-provedor.
     Rotas com cadeado exigem JWT Bearer; as demais são anônimas.
@@ -10,568 +10,831 @@ info:
 servers:
   - url: http://localhost:5172
     description: Dev local
-security:
-  - bearerAuth: []
-
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-  parameters:
-    providerKey:
-      in: header
-      name: X-Provider-Key
-      required: false
-      schema: { type: string }
-      description: Chave BYOK do provedor (por requisição).
-  schemas:
-    ProviderKind:
-      type: string
-      enum: [OpenRouter, Ollama, LmStudio, OpenAI, Anthropic, Gemini, Xai, Mistral, DeepSeek]
-    UserProfile:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        email: { type: string }
-        name: { type: string, nullable: true }
-        avatarUrl: { type: string, nullable: true }
-        provider: { type: string, enum: [Google, GitHub] }
-        createdAt: { type: string, format: date-time }
-    AuthResponse:
-      type: object
-      properties:
-        accessToken: { type: string }
-        expiresAt: { type: string, format: date-time }
-        refreshToken: { type: string }
-        user: { $ref: '#/components/schemas/UserProfile' }
-    Conversation:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        title: { type: string }
-        provider: { $ref: '#/components/schemas/ProviderKind' }
-        model: { type: string }
-        pinned: { type: boolean }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-        messageCount: { type: integer }
-        fallbackProvider: { type: string, nullable: true }
-        fallbackModel: { type: string, nullable: true }
-        projectId: { type: string, format: uuid, nullable: true, description: Projeto/pasta onde a conversa está arquivada (null = sem projeto). }
-    ConversationDetail:
-      allOf:
-        - $ref: '#/components/schemas/Conversation'
-        - type: object
-          properties:
-            messages:
-              type: array
-              items: { $ref: '#/components/schemas/Message' }
-    Message:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        role: { type: string, enum: [User, Assistant, System, Tool] }
-        content: { type: string }
-        model: { type: string, nullable: true }
-        tokensIn: { type: integer, nullable: true }
-        tokensOut: { type: integer, nullable: true }
-        error: { type: string, nullable: true }
-        createdAt: { type: string, format: date-time }
-        costUsd: { type: number, nullable: true, description: Custo estimado do turno (USD). }
-    Provider:
-      type: object
-      properties:
-        kind: { $ref: '#/components/schemas/ProviderKind' }
-        name: { type: string }
-        isLocal: { type: boolean }
-        requiresKey: { type: boolean }
-        serverKeyConfigured: { type: boolean }
-    Model:
-      type: object
-      properties:
-        id: { type: string }
-        name: { type: string }
-        description: { type: string, nullable: true }
-        contextLength: { type: integer, nullable: true }
-        promptPrice: { type: number, nullable: true, description: USD por 1M tokens de entrada. }
-        completionPrice: { type: number, nullable: true, description: USD por 1M tokens de saída. }
-        isDefault: { type: boolean }
-        supportsTools: { type: boolean, nullable: true }
-        supportsVision: { type: boolean, nullable: true }
-    ProviderKey:
-      type: object
-      properties:
-        provider: { $ref: '#/components/schemas/ProviderKind' }
-        updatedAt: { type: string, format: date-time }
-    Usage:
-      type: object
-      properties:
-        provider: { $ref: '#/components/schemas/ProviderKind' }
-        requests: { type: integer }
-        tokensIn: { type: integer }
-        tokensOut: { type: integer }
-        costUsd: { type: number, nullable: true }
-    Memory:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        scope: { type: string, enum: [Global, Project, Conversation] }
-        conversationId: { type: string, format: uuid, nullable: true }
-        source: { type: string, enum: [Manual, Extracted] }
-        content: { type: string }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-    Project:
-      type: object
-      description: Projeto do workspace (2 níveis — parentId nulo = raiz, preenchido = pasta de um projeto raiz).
-      properties:
-        id: { type: string, format: uuid }
-        parentId: { type: string, format: uuid, nullable: true }
-        name: { type: string }
-        conversationCount: { type: integer, description: Conversas arquivadas diretamente neste projeto/pasta (pastas não somadas). }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-    Error:
-      type: object
-      properties:
-        error: { type: string }
-        detail: { type: string, nullable: true }
-
 paths:
   /health:
     get:
-      security: []
-      summary: Health check anônimo
-      responses:
-        '200': { description: ok }
-
-  /api/auth/{provider}/login:
-    get:
-      security: []
-      summary: Inicia fluxo OAuth (Google/GitHub)
-      parameters:
-        - in: path
-          name: provider
-          required: true
-          schema: { type: string, enum: [google, github] }
-        - in: query
-          name: redirectUri
-          required: true
-          schema: { type: string }
-      responses:
-        '302': { description: Redirect para o provedor }
-
-  /api/auth/{provider}/callback:
-    get:
-      security: []
-      summary: Callback OAuth — redireciona para cortex://auth/callback
-      parameters:
-        - in: path
-          name: provider
-          required: true
-          schema: { type: string, enum: [google, github] }
-      responses:
-        '302': { description: Redirect com AuthResponse na query `data` }
-
-  /api/auth/refresh:
-    post:
-      security: []
-      summary: Renova access token
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                refreshToken: { type: string }
+      tags:
+        - Cortex.Core
       responses:
         '200':
-          description: Novo par de tokens
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/AuthResponse' }
-        '401':
-          description: Refresh inválido
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-
-  /api/auth/logout:
-    post:
-      summary: Revoga o refresh token
-      responses:
-        '204': { description: Revogado }
-
-  /api/me:
-    get:
-      summary: Perfil do usuário autenticado
-      responses:
-        '200':
-          content: { application/json: { schema: { $ref: '#/components/schemas/UserProfile' } } }
-        '404': { description: Não encontrado }
-
-  /api/providers:
-    get:
-      security: []
-      summary: Catálogo de provedores (disponibilidade e requisito de chave)
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/Provider' } }
-
-  /api/models:
-    get:
-      security: []
-      summary: Modelos de um provedor (cache 10min; bypass com chave/baseUrl)
-      parameters:
-        - { in: query, name: provider, required: true, schema: { $ref: '#/components/schemas/ProviderKind' } }
-        - { in: query, name: refresh, schema: { type: boolean } }
-        - { in: query, name: baseUrl, schema: { type: string }, description: "Só provedores locais (LM Studio/llama.cpp/Ollama remoto)." }
-        - $ref: '#/components/parameters/providerKey'
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/Model' } }
-        '400':
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-        '502':
-          description: Provedor inalcançável (ex.: Ollama desligado) ou erro upstream
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-
-  /api/keys:
-    get:
-      summary: Provedores com chave no cofre da conta (nunca retorna a chave)
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/ProviderKey' } }
-
-  /api/keys/{provider}:
-    put:
-      summary: Salva a chave BYOK no cofre (criptografada em repouso)
-      parameters:
-        - { in: path, name: provider, required: true, schema: { $ref: '#/components/schemas/ProviderKind' } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [key]
-              properties:
-                key: { type: string }
-      responses:
-        '204': { description: Salva }
-        '400':
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-    delete:
-      summary: Remove a chave do cofre
-      parameters:
-        - { in: path, name: provider, required: true, schema: { $ref: '#/components/schemas/ProviderKind' } }
-      responses:
-        '204': { description: Removida }
-        '404': { description: Não havia chave }
-
-  /api/conversations:
-    get:
-      summary: Lista conversas (fixadas primeiro, depois recentes)
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/Conversation' } }
-    post:
-      summary: Cria nova conversa
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [provider, model]
-              properties:
-                title: { type: string }
-                provider: { $ref: '#/components/schemas/ProviderKind' }
-                model: { type: string }
-                projectId: { type: string, format: uuid, nullable: true, description: Projeto/pasta onde nasce arquivada (id inválido = sem projeto). }
-      responses:
-        '201':
-          content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } }
-
-  /api/conversations/import:
-    post:
-      summary: Migração guest → conta (importa conversas do dispositivo)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [conversations]
-              properties:
-                conversations:
-                  type: array
-                  items:
-                    type: object
-                    required: [title, provider, model, pinned, messages]
-                    properties:
-                      title: { type: string }
-                      provider: { $ref: '#/components/schemas/ProviderKind' }
-                      model: { type: string }
-                      pinned: { type: boolean }
-                      messages:
-                        type: array
-                        items:
-                          type: object
-                          required: [role, content]
-                          properties:
-                            role: { type: string, enum: [User, Assistant, System] }
-                            content: { type: string }
-                            model: { type: string, nullable: true }
-                            tokensIn: { type: integer, nullable: true }
-                            tokensOut: { type: integer, nullable: true }
-                            error: { type: string, nullable: true }
-                            createdAt: { type: string, format: date-time, nullable: true }
-                            costUsd: { type: number, nullable: true }
-                memories:
-                  type: array
-                  description: Memórias globais do convidado (migradas como escopo Global).
-                  items:
-                    type: object
-                    required: [content]
-                    properties:
-                      content: { type: string }
-      responses:
-        '200':
-          description: "{ imported: n }"
-        '400':
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-
-  /api/conversations/{id}:
-    get:
-      parameters:
-        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
-      responses:
-        '200':
-          content: { application/json: { schema: { $ref: '#/components/schemas/ConversationDetail' } } }
-    patch:
-      summary: Atualiza título / pin / modelo / reserva (fallback)
-      parameters:
-        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title: { type: string }
-                pinned: { type: boolean }
-                provider: { $ref: '#/components/schemas/ProviderKind' }
-                model: { type: string }
-                fallbackProvider: { type: string, description: String vazio limpa a reserva. }
-                fallbackModel: { type: string, description: String vazio limpa a reserva. }
-                projectId: { type: string, description: String vazio desarquiva a conversa (volta para "Sem projeto"). }
-      responses:
-        '204': { description: Atualizada }
-        '404': { description: Não encontrada }
-    delete:
-      parameters:
-        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
-      responses:
-        '204': { description: Removida }
-
-  /api/projects:
-    get:
-      summary: Lista projetos e pastas (lista plana; o cliente monta a árvore de 2 níveis)
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/Project' } }
-    post:
-      summary: Cria um projeto (ou pasta, com parentId de um projeto raiz)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name]
-              properties:
-                name: { type: string, maxLength: 100 }
-                parentId: { type: string, format: uuid, nullable: true, description: Projeto raiz que receberá a pasta. Pastas não aninham. }
-      responses:
-        '201':
-          content: { application/json: { schema: { $ref: '#/components/schemas/Project' } } }
-        '400':
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-
-  /api/projects/{id}:
-    patch:
-      summary: Renomeia um projeto/pasta
-      parameters:
-        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name]
-              properties:
-                name: { type: string, maxLength: 100 }
-      responses:
-        '204': { description: Renomeado }
-        '400':
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-        '404': { description: Não encontrado }
-    delete:
-      summary: Remove um projeto/pasta — pastas caem junto e as conversas são desarquivadas (nunca apagadas)
-      parameters:
-        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
-      responses:
-        '204': { description: Removido }
-        '404': { description: Não encontrado }
-
-  /api/usage:
-    get:
-      summary: Uso de tokens e custo estimado do mês (por provedor)
-      parameters:
-        - { in: query, name: month, schema: { type: string, description: "yyyy-MM (default: mês atual)" } }
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/Usage' } }
-
-  /api/memories:
-    get:
-      summary: Lista memórias do usuário (filtro opcional por escopo/conversa)
-      parameters:
-        - { in: query, name: scope, schema: { type: string, enum: [Global, Project, Conversation] } }
-        - { in: query, name: conversationId, schema: { type: string, format: uuid } }
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/Memory' } }
-    post:
-      summary: Cria uma memória
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [scope, content]
-              properties:
-                scope: { type: string, enum: [Global, Project, Conversation] }
-                conversationId: { type: string, format: uuid, nullable: true, description: Obrigatório quando scope=Conversation. }
-                content: { type: string }
-      responses:
-        '201':
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Memory' }
-        '400':
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-
-  /api/memories/{id}:
-    patch:
-      summary: Edita o conteúdo de uma memória
-      parameters:
-        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [content]
-              properties:
-                content: { type: string }
-      responses:
-        '204': { description: Atualizada }
-        '404': { description: Não encontrada }
-    delete:
-      summary: Remove uma memória
-      parameters:
-        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
-      responses:
-        '204': { description: Removida }
-        '404': { description: Não encontrada }
-
-  /api/chat:
-    post:
-      summary: Streama uma rodada de chat autenticada (SSE)
-      parameters:
-        - $ref: '#/components/parameters/providerKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [conversationId, content]
-              properties:
-                conversationId: { type: string, format: uuid }
-                content: { type: string }
-                locale: { type: string }
-      responses:
-        '200':
-          description: text/event-stream
-          content:
-            text/event-stream:
-              schema:
-                type: string
-                description: |
-                  Eventos SSE (`event: <tipo>` + `data: <json>`):
-                  - user { messageId } / assistant { messageId }
-                  - token { value }
-                  - reasoning { value } (cadeia de raciocínio de modelos reasoning, exibida separada da resposta; persistida em messages.reasoning)
-                  - toolCall { id, name, arguments } (contrato da Fase 4)
-                  - notice { message } (ex.: fallback acionado)
-                  - done { tokensIn, tokensOut, provider, model, costUsd }
-                  - memoryProposal { proposals: string[] } (extração automática pós-turno, aguarda confirmação do usuário)
-                  - error { message }
-
+          description: OK
   /api/chat/anonymous:
     post:
-      security: []
-      summary: Chat de convidado, stateless (SSE). Locais sempre; remotos exigem X-Provider-Key.
-      parameters:
-        - $ref: '#/components/parameters/providerKey'
+      tags:
+        - AnonymousChat
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [provider, messages]
-              properties:
-                provider: { $ref: '#/components/schemas/ProviderKind' }
-                model: { type: string, nullable: true }
-                messages:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      role: { type: string, enum: [User, Assistant, System] }
-                      content: { type: string }
-                temperature: { type: number }
-                maxTokens: { type: integer }
-                locale: { type: string }
-                baseUrl: { type: string, description: "Só provedores locais." }
+              $ref: '#/components/schemas/AnonymousChatRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/AnonymousChatRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/AnonymousChatRequest'
+        required: true
       responses:
         '200':
-          description: text/event-stream (token / reasoning / usage / done / error)
-        '403':
-          description: Provedor remoto sem chave
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-        '429':
-          description: Limite de requisições anônimas por IP
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+          description: OK
+  /api/auth/{provider}/login:
+    get:
+      tags:
+        - Auth
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: redirectUri
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /api/auth/{provider}/callback:
+    get:
+      tags:
+        - Auth
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - name: error
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /api/auth/refresh:
+    post:
+      tags:
+        - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/auth/logout:
+    post:
+      tags:
+        - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/chat:
+    post:
+      tags:
+        - Chat
+      parameters:
+        - name: X-Provider-Key
+          in: header
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/conversations:
+    get:
+      tags:
+        - Conversations
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+        - Conversations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversationRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversationRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/CreateConversationRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/conversations/{id}:
+    get:
+      tags:
+        - Conversations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+    patch:
+      tags:
+        - Conversations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConversationRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConversationRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/UpdateConversationRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+        - Conversations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+  /api/conversations/import:
+    post:
+      tags:
+        - Conversations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportConversationsRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/ImportConversationsRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/ImportConversationsRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/keys:
+    get:
+      tags:
+        - Keys
+      responses:
+        '200':
+          description: OK
+  /api/keys/{provider}:
+    put:
+      tags:
+        - Keys
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveProviderKeyRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/SaveProviderKeyRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/SaveProviderKeyRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+        - Keys
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /api/me:
+    get:
+      tags:
+        - Me
+      responses:
+        '200':
+          description: OK
+  /api/memories:
+    get:
+      tags:
+        - Memories
+      parameters:
+        - name: scope
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemoryScope'
+        - name: conversationId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+        - Memories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMemoryRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/CreateMemoryRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/CreateMemoryRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/memories/bulk-delete:
+    post:
+      tags:
+        - Memories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkDeleteMemoriesRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/BulkDeleteMemoriesRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/BulkDeleteMemoriesRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/memories/clear:
+    post:
+      tags:
+        - Memories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClearMemoriesRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/ClearMemoriesRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/ClearMemoriesRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/memories/{id}:
+    patch:
+      tags:
+        - Memories
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemoryRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemoryRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemoryRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+        - Memories
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+  /api/models:
+    get:
+      tags:
+        - Models
+      parameters:
+        - name: provider
+          in: query
+          schema:
+            type: string
+        - name: refresh
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: X-Provider-Key
+          in: header
+          schema:
+            type: string
+        - name: baseUrl
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /api/projects:
+    get:
+      tags:
+        - Projects
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+        - Projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/projects/{id}:
+    patch:
+      tags:
+        - Projects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+        - Projects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+  /api/providers:
+    get:
+      tags:
+        - Providers
+      responses:
+        '200':
+          description: OK
+  /api/usage:
+    get:
+      tags:
+        - Usage
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+components:
+  schemas:
+    AnonymousChatMessage:
+      required:
+        - role
+        - content
+      type: object
+      properties:
+        role:
+          $ref: '#/components/schemas/MessageRole'
+        content:
+          type: string
+    AnonymousChatRequest:
+      required:
+        - provider
+        - model
+        - messages
+      type: object
+      properties:
+        provider:
+          $ref: '#/components/schemas/ChatProviderKind'
+        model:
+          type:
+            - 'null'
+            - string
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnonymousChatMessage'
+        temperature:
+          pattern: ^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$
+          type:
+            - 'null'
+            - number
+            - string
+          format: double
+        maxTokens:
+          pattern: ^-?(?:0|[1-9]\d*)$
+          type:
+            - 'null'
+            - integer
+            - string
+          format: int32
+        locale:
+          type:
+            - 'null'
+            - string
+        baseUrl:
+          type:
+            - 'null'
+            - string
+    BulkDeleteMemoriesRequest:
+      required:
+        - ids
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    ChatProviderKind:
+      type: integer
+    ChatRequest:
+      required:
+        - conversationId
+        - content
+      type: object
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+        content:
+          type: string
+        locale:
+          type:
+            - 'null'
+            - string
+    ClearMemoriesRequest:
+      required:
+        - scope
+        - projectId
+        - conversationId
+      type: object
+      properties:
+        scope:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/MemoryScope'
+        projectId:
+          type:
+            - 'null'
+            - string
+          format: uuid
+        conversationId:
+          type:
+            - 'null'
+            - string
+          format: uuid
+    CreateConversationRequest:
+      required:
+        - title
+        - provider
+        - model
+      type: object
+      properties:
+        title:
+          type:
+            - 'null'
+            - string
+        provider:
+          $ref: '#/components/schemas/ChatProviderKind'
+        model:
+          type: string
+        projectId:
+          type:
+            - 'null'
+            - string
+          format: uuid
+    CreateMemoryRequest:
+      required:
+        - scope
+        - conversationId
+        - projectId
+        - content
+      type: object
+      properties:
+        scope:
+          $ref: '#/components/schemas/MemoryScope'
+        conversationId:
+          type:
+            - 'null'
+            - string
+          format: uuid
+        projectId:
+          type:
+            - 'null'
+            - string
+          format: uuid
+        content:
+          type: string
+    CreateProjectRequest:
+      required:
+        - name
+      type: object
+      properties:
+        name:
+          type: string
+        parentId:
+          type:
+            - 'null'
+            - string
+          format: uuid
+    ImportConversationDto:
+      required:
+        - title
+        - provider
+        - model
+        - pinned
+        - messages
+      type: object
+      properties:
+        title:
+          type: string
+        provider:
+          $ref: '#/components/schemas/ChatProviderKind'
+        model:
+          type: string
+        pinned:
+          type: boolean
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportMessageDto'
+    ImportConversationsRequest:
+      required:
+        - conversations
+      type: object
+      properties:
+        conversations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportConversationDto'
+        memories:
+          type:
+            - 'null'
+            - array
+          items:
+            $ref: '#/components/schemas/ImportMemoryDto'
+    ImportMemoryDto:
+      required:
+        - content
+      type: object
+      properties:
+        content:
+          type: string
+    ImportMessageDto:
+      required:
+        - role
+        - content
+        - model
+        - tokensIn
+        - tokensOut
+        - error
+        - createdAt
+      type: object
+      properties:
+        role:
+          $ref: '#/components/schemas/MessageRole'
+        content:
+          type: string
+        model:
+          type:
+            - 'null'
+            - string
+        tokensIn:
+          pattern: ^-?(?:0|[1-9]\d*)$
+          type:
+            - 'null'
+            - integer
+            - string
+          format: int32
+        tokensOut:
+          pattern: ^-?(?:0|[1-9]\d*)$
+          type:
+            - 'null'
+            - integer
+            - string
+          format: int32
+        error:
+          type:
+            - 'null'
+            - string
+        createdAt:
+          type:
+            - 'null'
+            - string
+          format: date-time
+        costUsd:
+          pattern: ^-?(?:0|[1-9]\d*)(?:\.\d+)?$
+          type:
+            - 'null'
+            - number
+            - string
+          format: double
+    MemoryScope:
+      type: integer
+    MessageRole:
+      type: integer
+    RefreshRequest:
+      required:
+        - refreshToken
+      type: object
+      properties:
+        refreshToken:
+          type: string
+    SaveProviderKeyRequest:
+      required:
+        - key
+      type: object
+      properties:
+        key:
+          type: string
+    UpdateConversationRequest:
+      required:
+        - title
+        - pinned
+      type: object
+      properties:
+        title:
+          type:
+            - 'null'
+            - string
+        pinned:
+          type:
+            - 'null'
+            - boolean
+        provider:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/ChatProviderKind'
+        model:
+          type:
+            - 'null'
+            - string
+        fallbackProvider:
+          type:
+            - 'null'
+            - string
+        fallbackModel:
+          type:
+            - 'null'
+            - string
+        projectId:
+          type:
+            - 'null'
+            - string
+    UpdateMemoryRequest:
+      required:
+        - content
+      type: object
+      properties:
+        content:
+          type: string
+    UpdateProjectRequest:
+      required:
+        - name
+      type: object
+      properties:
+        name:
+          type: string
+tags:
+  - name: Cortex.Core
+  - name: AnonymousChat
+  - name: Auth
+  - name: Chat
+  - name: Conversations
+  - name: Keys
+  - name: Me
+  - name: Memories
+  - name: Models
+  - name: Projects
+  - name: Providers
+  - name: Usage
+

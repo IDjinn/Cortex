@@ -5,6 +5,7 @@ import { getUsage } from '@/api';
 import type { UsageResponse } from '@/api/types';
 import { Card } from '@/components/ui';
 import { PROVIDER_LABEL } from '@/stores/providersStore';
+import { selectIsGuest, useAuthStore, useConversationsStore, useGuestStore, useMemoriesStore } from '@/stores';
 import { useTheme } from '@/theme';
 
 const MONTHS_TO_FETCH = 6;
@@ -36,15 +37,47 @@ function fmtUsd(n: number): string {
 }
 
 /**
- * Usage & cost analytics (authed users; costs are estimates): current-month
- * totals, a 6-month token bar chart and a per-provider split. Charts are pure
- * Views — no chart dependency.
+ * Usage card: local statistics (conversations, messages, memories — plus
+ * tokens for guests) always visible, and for authed users the cost analytics
+ * (current-month totals, a 6-month token bar chart and a per-provider split).
+ * Charts are pure Views — no chart dependency.
  */
 export function UsageCard() {
   const { colors } = useTheme();
+  const isGuest = useAuthStore(selectIsGuest);
+
+  const authedCount = useConversationsStore((s) => s.list.length);
+  const guestCount = useGuestStore((s) => s.conversations.length);
+  const conversationCount = isGuest ? guestCount : authedCount;
+
+  const authedMessageCount = useConversationsStore((s) =>
+    s.list.reduce((acc, c) => acc + c.messageCount, 0),
+  );
+  const guestMessageCount = useGuestStore((s) =>
+    Object.values(s.messagesByConv).reduce((acc, msgs) => acc + msgs.length, 0),
+  );
+  const guestTokens = useGuestStore((s) =>
+    Object.values(s.messagesByConv).reduce(
+      (acc, msgs) => acc + msgs.reduce((a, m) => a + (m.tokensIn ?? 0) + (m.tokensOut ?? 0), 0),
+      0,
+    ),
+  );
+  const authedMemories = useMemoriesStore((s) => s.list.length);
+  const guestMemories = useGuestStore((s) => s.memories.length);
+  const fetchMemories = useMemoriesStore((s) => s.fetchAll);
+
+  // Authed memory count is a server list — pull it once for the stats rows.
+  useEffect(() => {
+    if (!isGuest) fetchMemories().catch(() => {});
+  }, [isGuest, fetchMemories]);
+
+  const messageCount = isGuest ? guestMessageCount : authedMessageCount;
+  const memoryCount = isGuest ? guestMemories : authedMemories;
+
   const [buckets, setBuckets] = useState<MonthBucket[] | null>(null);
 
   useEffect(() => {
+    if (isGuest) return;
     const now = new Date();
     const months = Array.from({ length: MONTHS_TO_FETCH }, (_, k) => {
       const d = new Date(now.getFullYear(), now.getMonth() - (MONTHS_TO_FETCH - 1 - k), 1);
@@ -76,11 +109,43 @@ export function UsageCard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isGuest]);
 
-  if (!buckets) return null;
-  if (buckets.every((b) => b.requests === 0)) return null;
+  const hasUsage = buckets !== null && buckets.some((b) => b.requests > 0);
 
+  return (
+    <Card $elevation={0} $padding="lg">
+      <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600', marginBottom: 10 }}>
+        Uso
+      </Text>
+
+      {/* Local statistics */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+        <Text style={{ color: colors.textSecondary }}>Conversas</Text>
+        <Text style={{ color: colors.text }}>{conversationCount}</Text>
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+        <Text style={{ color: colors.textSecondary }}>Mensagens</Text>
+        <Text style={{ color: colors.text }}>{messageCount.toLocaleString('pt-BR')}</Text>
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+        <Text style={{ color: colors.textSecondary }}>Memórias</Text>
+        <Text style={{ color: colors.text }}>{memoryCount}</Text>
+      </View>
+      {isGuest ? (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+          <Text style={{ color: colors.textSecondary }}>Tokens processados</Text>
+          <Text style={{ color: colors.text }}>{guestTokens.toLocaleString('pt-BR')}</Text>
+        </View>
+      ) : null}
+
+      {hasUsage && buckets ? <UsageAnalytics buckets={buckets} /> : null}
+    </Card>
+  );
+}
+
+function UsageAnalytics({ buckets }: { buckets: MonthBucket[] }) {
+  const { colors } = useTheme();
   const current = buckets[buckets.length - 1];
   const currentCost = current.cost;
   const maxTokens = Math.max(...buckets.map((b) => b.tokens), 1);
@@ -91,8 +156,8 @@ export function UsageCard() {
   const month = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
   return (
-    <Card $elevation={0} $padding="lg">
-      <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600', marginBottom: 12 }}>
+    <>
+      <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600', marginTop: 16, marginBottom: 12 }}>
         Uso & custo — {month}
       </Text>
 
@@ -178,7 +243,7 @@ export function UsageCard() {
           })}
         </>
       ) : null}
-    </Card>
+    </>
   );
 }
 

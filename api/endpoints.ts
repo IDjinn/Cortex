@@ -1,6 +1,7 @@
 import { apiRequest } from './client';
 import { config } from '@/config';
 import type {
+  BulkMemoryResultResponse,
   ChatProviderKind,
   ConversationDetailResponse,
   ConversationResponse,
@@ -152,15 +153,20 @@ export function removeVaultKey(provider: ChatProviderKind): Promise<void> {
 
 // ---- Memories ----
 
-export function listMemories(scope?: MemoryScope, conversationId?: string): Promise<MemoryResponse[]> {
+export function listMemories(
+  scope?: MemoryScope,
+  conversationId?: string,
+  projectId?: string,
+): Promise<MemoryResponse[]> {
   return apiRequest<MemoryResponse[]>('/api/memories', {
-    query: { scope, conversationId },
+    query: { scope, conversationId, projectId },
   });
 }
 
 export function createMemory(input: {
   scope: MemoryScope;
   conversationId?: string;
+  projectId?: string;
   content: string;
 }): Promise<MemoryResponse> {
   return apiRequest<MemoryResponse>('/api/memories', { method: 'POST', body: input });
@@ -172,6 +178,26 @@ export function updateMemory(id: string, content: string): Promise<void> {
 
 export function deleteMemory(id: string): Promise<void> {
   return apiRequest<void>(`/api/memories/${id}`, { method: 'DELETE' });
+}
+
+/** Bulk delete by ids (server caps at 500 per call). */
+export function bulkDeleteMemories(ids: string[]): Promise<BulkMemoryResultResponse> {
+  return apiRequest<BulkMemoryResultResponse>('/api/memories/bulk-delete', {
+    method: 'POST',
+    body: { ids },
+  });
+}
+
+/** Bulk clear scoped to a filter — the server rejects a filterless clear. */
+export function clearMemories(filter: {
+  scope?: MemoryScope;
+  projectId?: string;
+  conversationId?: string;
+}): Promise<BulkMemoryResultResponse> {
+  return apiRequest<BulkMemoryResultResponse>('/api/memories/clear', {
+    method: 'POST',
+    body: filter,
+  });
 }
 
 // ---- Models ----

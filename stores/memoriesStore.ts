@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 
 import {
+  bulkDeleteMemories as apiBulkDelete,
+  clearMemories as apiClear,
   createMemory as apiCreate,
   deleteMemory as apiDelete,
   listMemories,
@@ -9,14 +11,21 @@ import {
 import type { MemoryResponse, MemoryScope } from '@/api/types';
 
 /**
- * Server-backed memories for authed users (scoped global/conversation).
+ * Server-backed memories for authed users (scoped global/project/conversation).
  * Guests use the device-persisted memories inside `guestStore` instead.
  */
 
 export interface CreateMemoryInput {
   scope: MemoryScope;
   conversationId?: string;
+  projectId?: string;
   content: string;
+}
+
+export interface ClearMemoryFilter {
+  scope?: MemoryScope;
+  projectId?: string;
+  conversationId?: string;
 }
 
 interface MemoriesState {
@@ -27,6 +36,8 @@ interface MemoriesState {
   create: (input: CreateMemoryInput) => Promise<MemoryResponse>;
   update: (id: string, content: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  bulkRemove: (ids: string[]) => Promise<number>;
+  clear: (filter: ClearMemoryFilter) => Promise<number>;
 }
 
 export type { MemoriesState };
@@ -66,7 +77,27 @@ export const useMemoriesStore = create<MemoriesState>((set, get) => ({
     await apiDelete(id);
     set((state) => ({ list: state.list.filter((m) => m.id !== id) }));
   },
+
+  bulkRemove: async (ids) => {
+    const { deleted } = await apiBulkDelete(ids);
+    const gone = new Set(ids);
+    set((state) => ({ list: state.list.filter((m) => !gone.has(m.id)) }));
+    return deleted;
+  },
+
+  clear: async (filter) => {
+    const { deleted } = await apiClear(filter);
+    set((state) => ({ list: state.list.filter((m) => !matchesFilter(m, filter)) }));
+    return deleted;
+  },
 }));
+
+function matchesFilter(m: MemoryResponse, filter: ClearMemoryFilter): boolean {
+  if (filter.scope !== undefined && m.scope !== filter.scope) return false;
+  if (filter.conversationId !== undefined && m.conversationId !== filter.conversationId) return false;
+  if (filter.projectId !== undefined && m.projectId !== filter.projectId) return false;
+  return true;
+}
 
 /** Memories relevant to a conversation, for client-side prompt injection (mirrors the server budget). */
 export function relevantMemories(

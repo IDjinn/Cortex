@@ -4,7 +4,7 @@ import { listModels, listProviders, listVaultKeys } from '@/api';
 import type { ChatProviderKind, ModelResponse, ProviderResponse } from '@/api/types';
 import { useKeysStore } from './keysStore';
 import { useModelPrefsStore } from './modelPrefsStore';
-import { localEndpoint } from './localEndpointStore';
+import { localEndpoint, type LocalProviderKind } from './localEndpointStore';
 
 /** Display labels for every ChatProviderKind (single source for picker + headers). */
 export const PROVIDER_LABEL: Record<ChatProviderKind, string> = {
@@ -55,18 +55,14 @@ export const useProvidersStore = create<ProvidersState>()((set) => ({
         set({ catalog });
 
         const usable = catalog.filter((p) => isUsable(p, isGuest, vault));
-        const baseUrl = localEndpoint();
         const results = await Promise.all(
           usable.map(async (p) => {
             try {
               const providerKey = useKeysStore.getState().deviceKeys[p.kind];
+              const baseUrl = p.isLocal ? localEndpoint(p.kind as LocalProviderKind) : undefined;
               const models = await listModels(
                 p.kind,
-                providerKey
-                  ? { providerKey }
-                  : p.isLocal && baseUrl
-                    ? { baseUrl }
-                    : {},
+                providerKey ? { providerKey } : baseUrl ? { baseUrl } : {},
               );
               return [p.kind, models] as const;
             } catch {
